@@ -13,13 +13,19 @@ const DEFAULT_DATA = {
       name: 'Doctor',
       parent: 'Person',
       desc: 'Medical professionals performing the treatment or study.',
-      properties: [{ name: 'specialization', type: 'string', constraint: 'required' }],
+      properties: [
+        { name: 'specialization', type: 'string', constraint: 'required' },
+        { name: 'npi', type: 'string', constraint: 'unique' },
+      ],
     },
     {
       name: 'Drug',
       parent: 'Treatment',
       desc: 'Pharmaceutical substances administered to patients.',
-      properties: [{ name: 'approval_date', type: 'date', constraint: 'optional' }],
+      properties: [
+        { name: 'generic_name', type: 'string', constraint: 'required' },
+        { name: 'approval_date', type: 'date', constraint: 'optional' },
+      ],
     },
   ],
   relationships: [
@@ -30,8 +36,9 @@ const DEFAULT_DATA = {
       props: 'dosage, frequency',
     },
   ],
-  inference: 'If X PRESCRIBES Y, then X KNOWS_OF Y\nIf X WORKS_AT Y and Y PART_OF Z, then X WORKS_AT Z',
-  constraints: "A 'Patient' must have a unique 'MedicalRecordID'\nDates must follow YYYY-MM-DD format",
+  inference: '',
+  constraints:
+    'Use only the listed Classes and Relationship Predicates.\nReturn JSON only (no markdown, no prose).\nIf nothing is found, return {"nodes":[],"edges":[]}.\nDates must follow YYYY-MM-DD format.',
 }
 
 let idCounter = 0

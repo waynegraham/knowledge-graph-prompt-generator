@@ -8,6 +8,14 @@ const canonicalizeName = (value: string): string => value.trim().toLowerCase()
 const escapeText = (value: string): string =>
   value.replace(/```/g, '\\`\\`\\`').replace(/\r\n/g, '\n')
 
+export type PromptVariant = 'universal' | 'openai' | 'gemini' | 'qwen'
+export type PromptFormat = 'single' | 'messages' | 'compact'
+
+export type PromptOptions = {
+  variant?: PromptVariant
+  format?: PromptFormat
+}
+
 const sortByName = <T extends { name: string; id: string }>(items: T[]): T[] =>
   [...items].sort((a, b) => {
     const nameCompare = collator.compare(a.name, b.name)
@@ -83,7 +91,33 @@ const formatEdgeProps = (props: string): string => {
   return list.length ? ` | Edge Properties: [${list.join(', ')}]` : ''
 }
 
-export const buildPrompt = (data: FormDataModel): string => {
+const formatVariantNudges = (variant: PromptVariant): string => {
+  switch (variant) {
+    case 'openai':
+      return `\n## MODEL NOTES (OPENAI)
+- Output must be strict JSON (double quotes, no trailing commas).
+- Do not wrap the JSON in markdown or code fences.`
+    case 'gemini':
+      return `\n## MODEL NOTES (GEMINI)
+- Output must be JSON only. Do not include \`\`\`json fences or any commentary.
+- Ensure numbers are numbers (not quoted).`
+    case 'qwen':
+      return `\n## MODEL NOTES (QWEN)
+- Output must be JSON only. Start with \`{\` and end with \`}\`.
+- Do not add explanations, headings, or markdown formatting.`
+    case 'universal':
+    default:
+      return ''
+  }
+}
+
+const formatAllowedLists = (entities: EntityDef[], relationships: RelationshipDef[]): string => {
+  const allowedClasses = entities.length ? entities.map((e) => e.name).join(', ') : 'None'
+  const allowedPredicates = relationships.length ? relationships.map((r) => r.name).join(', ') : 'None'
+  return `- Allowed Classes: ${allowedClasses}\n- Allowed Predicates: ${allowedPredicates}`
+}
+
+const buildSystemPrompt = (data: FormDataModel, options: Required<PromptOptions>): string => {
   const domain = escapeText(clean(data.domain))
   const goal = escapeText(clean(data.goal))
   const entities = normalizeEntities(data.entities)
@@ -112,6 +146,9 @@ export const buildPrompt = (data: FormDataModel): string => {
         .join('\n')
     : '- No relationship predicates defined.'
 
+  const variantNudges = formatVariantNudges(options.variant)
+  const allowedLists = formatAllowedLists(entities, relationships)
+
   return `# SYSTEM PROMPT: ADVANCED KNOWLEDGE GRAPH EXTRACTION
 You are an expert Ontology Engineer and Information Extraction specialist for the ${domain || 'specified'} domain.
 ## MISSION
@@ -123,13 +160,22 @@ ${entitySection}
 Define these edges connecting the instances of the classes above.
 ${relationshipSection}
 ## LOGICAL ONTOLOGY & INFERENCE RULES
-Apply these logical rules during extraction:
+Apply these logical rules during extraction. Do not output new predicates unless they are explicitly listed under Relationship Schema.
 ${inference || '- No specific inference rules provided.'}
 ## STRUCTURAL CONSTRAINTS
 Strictly adhere to these graph constraints:
 ${constraints || '- Ensure all typed literals match their declared types (String, Number, Date).'}
+## EXTRACTION RULES (STRICT)
+${allowedLists}
+- Only create nodes whose **class** is one of the Allowed Classes.
+- Only create edges whose **predicate** is one of the Allowed Predicates.
+- Only use properties declared for each class; do not invent new properties.
+- If a node cannot satisfy **Required Properties** from the text, omit the node (do not guess).
+- For **Unique Properties**, merge nodes that share the same value (case-insensitive), preferring the most specific evidence.
+- Evidence must be a short verbatim quote from the input text (no paraphrase).
+${variantNudges}
 ## OUTPUT REQUIREMENTS (JSON)
-Return only a valid JSON object with:
+Return only a valid JSON object (no markdown, no code fences, no prose). If nothing is found, return {"nodes":[],"edges":[]}.
 \`\`\`json
 {
   "nodes": [
@@ -140,4 +186,78 @@ Return only a valid JSON object with:
   ]
 }
 \`\`\``
+}
+
+const buildUserPrompt = (): string =>
+  `Extract a knowledge graph from the following text.\nReturn JSON only, following the schema exactly.\n\nTEXT:\n<<<\nPASTE_TEXT_HERE\n>>>`
+
+const buildCompactPrompt = (data: FormDataModel, options: Required<PromptOptions>): string => {
+  const domain = escapeText(clean(data.domain))
+  const goal = escapeText(clean(data.goal))
+  const entities = normalizeEntities(data.entities)
+  const entityNameMap = new Map(entities.map((entity) => [entity.canonicalName ?? '', entity.name]))
+  const relationships = normalizeRelationships(data.relationships, entityNameMap)
+  const inference = escapeText(clean(data.inference))
+  const constraints = escapeText(clean(data.constraints))
+
+  const classes = entities.map((e) => ({
+    name: e.name,
+    parent: e.parent || undefined,
+    desc: e.desc || undefined,
+    required: normalizeProps(e.properties)
+      .filter((p) => p.constraint === 'required')
+      .map((p) => ({ name: p.name, type: p.type })),
+    optional: normalizeProps(e.properties)
+      .filter((p) => p.constraint === 'optional')
+      .map((p) => ({ name: p.name, type: p.type })),
+    unique: normalizeProps(e.properties)
+      .filter((p) => p.constraint === 'unique')
+      .map((p) => ({ name: p.name, type: p.type })),
+  }))
+
+  const preds = relationships.map((r) => ({
+    name: r.name,
+    source: r.source || undefined,
+    target: r.target || undefined,
+    edgeProps: r.props
+      ? r.props
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .sort(collator.compare)
+      : [],
+  }))
+
+  const schema = {
+    domain: domain || 'specified',
+    mission: goal || 'No extraction goal provided.',
+    classes,
+    predicates: preds,
+    inference: inference || undefined,
+    constraints: constraints || undefined,
+    output: {
+      nodes: [{ id: 'unique_id', class: 'ClassName', properties: {}, evidence: 'verbatim text' }],
+      edges: [{ source: 'node_id', predicate: 'REL_NAME', target: 'node_id', properties: {}, evidence: 'verbatim text' }],
+    },
+  }
+
+  const variantNudges = formatVariantNudges(options.variant)
+
+  return `SYSTEM: You extract a knowledge graph for the ${schema.domain} domain.\nMISSION: ${schema.mission}\nRULES:\n- JSON only (no markdown).\n- If nothing found: {\"nodes\":[],\"edges\":[]}.\n- Only use declared classes/predicates/properties.\n- Evidence must be verbatim.\n${variantNudges.trim()}\nSCHEMA (JSON):\n${escapeText(JSON.stringify(schema, null, 2))}\n\nUSER:\n${buildUserPrompt()}`
+}
+
+export const buildPrompt = (data: FormDataModel, options?: PromptOptions): string => {
+  const normalizedOptions: Required<PromptOptions> = {
+    variant: options?.variant ?? 'universal',
+    format: options?.format ?? 'single',
+  }
+
+  if (normalizedOptions.format === 'compact') return buildCompactPrompt(data, normalizedOptions)
+
+  const system = buildSystemPrompt(data, normalizedOptions)
+  if (normalizedOptions.format === 'messages') {
+    return `SYSTEM:\n${system}\n\nUSER:\n${buildUserPrompt()}`
+  }
+
+  return system
 }

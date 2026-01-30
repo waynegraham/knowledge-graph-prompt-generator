@@ -1,4 +1,4 @@
-import { buildPrompt } from './prompt'
+import { buildPrompt, type PromptFormat, type PromptVariant } from './prompt'
 import { byId } from './dom'
 import {
   buildDefaultState,
@@ -25,6 +25,8 @@ const buttonOutline = `${buttonBase} border-2 border-primary text-primary hover:
 const buttonPrimary = `${buttonBase} bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/30`
 const buttonRemove = 'rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold text-red-800 hover:bg-red-200'
 const buttonGhost = `${buttonBase} border border-slate-200 text-slate-600 hover:border-primary hover:text-primary`
+const selectClass =
+  'w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
 
 export const ACTIONS = {
   addEntity: 'add-entity',
@@ -129,6 +131,23 @@ const appTemplate = `
       </section>
 
       <div class="flex flex-col items-center justify-center gap-4 pb-4 md:flex-row md:flex-wrap">
+        <div class="flex flex-col items-center gap-2">
+          <label for="promptPreset" class="text-xs font-semibold text-slate-600">LLM Preset</label>
+          <select id="promptPreset" class="${selectClass} w-auto" aria-label="LLM preset">
+            <option value="universal" selected>Universal</option>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="qwen">Qwen</option>
+          </select>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <label for="promptFormat" class="text-xs font-semibold text-slate-600">Output Format</label>
+          <select id="promptFormat" class="${selectClass} w-auto" aria-label="Prompt output format">
+            <option value="single" selected>Single prompt</option>
+            <option value="messages">System + user messages</option>
+            <option value="compact">Compact (token saver)</option>
+          </select>
+        </div>
         <div class="flex flex-col items-center gap-1">
           <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="${ACTIONS.useDefaults}">
             📝 Use Default Values
@@ -306,6 +325,29 @@ const revalidate = (): void => {
   applyErrors(validateState(data), data)
 }
 
+const parsePromptVariant = (value: string | null | undefined): PromptVariant => {
+  switch (value) {
+    case 'openai':
+    case 'gemini':
+    case 'qwen':
+    case 'universal':
+      return value
+    default:
+      return 'universal'
+  }
+}
+
+const parsePromptFormat = (value: string | null | undefined): PromptFormat => {
+  switch (value) {
+    case 'messages':
+    case 'compact':
+    case 'single':
+      return value
+    default:
+      return 'single'
+  }
+}
+
 const generatePrompt = (): void => {
   const data = getState()
   const isValid = applyErrors(validateState(data), data)
@@ -314,7 +356,9 @@ const generatePrompt = (): void => {
     return
   }
 
-  const prompt = buildPrompt(data)
+  const preset = parsePromptVariant(document.querySelector<HTMLSelectElement>('#promptPreset')?.value)
+  const format = parsePromptFormat(document.querySelector<HTMLSelectElement>('#promptFormat')?.value)
+  const prompt = buildPrompt(data, { variant: preset, format })
   const output = byId<HTMLDivElement>('promptOutput')
   const section = byId<HTMLElement>('outputSection')
   output.textContent = prompt
