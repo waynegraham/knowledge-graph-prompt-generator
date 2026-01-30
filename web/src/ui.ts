@@ -44,6 +44,8 @@ export const ACTIONS = {
 
 export type ActionName = (typeof ACTIONS)[keyof typeof ACTIONS]
 
+let lastGeneratedPrompt = ''
+
 const appTemplate = `
   <div id="notification" class="hidden fixed right-8 top-8 z-50 rounded-xl bg-emerald-600 px-8 py-4 text-white shadow-lg" role="status" aria-live="polite"></div>
   <div class="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white/95 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.3)] backdrop-blur">
@@ -173,8 +175,8 @@ const appTemplate = `
         <h2 class="text-2xl font-semibold">🚀 Optimized System Prompt</h2>
         <button class="${buttonOutline} border-white text-white hover:border-white/70 hover:text-white/80" data-action="${ACTIONS.copy}">📋 Copy to Clipboard</button>
       </div>
-      <p class="mb-4 text-xs text-slate-300">Model must output only JSON, no prose.</p>
-      <div id="promptOutput" class="max-h-[700px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-6 font-mono text-sm leading-relaxed text-slate-100"></div>
+      <p class="mb-4 text-xs text-slate-300">Preview is formatted for readability; clipboard copies the raw prompt.</p>
+      <div id="promptOutput" class="kg-prompt max-h-[700px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-6 font-sans text-sm leading-6 text-slate-100"></div>
     </section>
   </div>
 `
@@ -325,6 +327,101 @@ const revalidate = (): void => {
   applyErrors(validateState(data), data)
 }
 
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const formatInlineHtml = (escaped: string): string =>
+  escaped
+    .replace(/\*\*(.+?)\*\*/g, '<span class="font-semibold text-slate-50">$1</span>')
+    .replace(
+      /`([^`]+?)`/g,
+      '<span class="font-mono rounded bg-slate-950/50 px-1 py-0.5 text-[0.9em] text-slate-100">$1</span>'
+    )
+
+const renderPromptPreviewHtml = (prompt: string): string => {
+  const lines = prompt.split('\n')
+  const parts: string[] = []
+  let inCodeBlock = false
+  let codeLang = ''
+
+  const closeCodeIfNeeded = (): void => {
+    if (!inCodeBlock) return
+    parts.push('</pre></div>')
+    inCodeBlock = false
+    codeLang = ''
+  }
+
+  lines.forEach((line) => {
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        closeCodeIfNeeded()
+        return
+      }
+
+      codeLang = line.slice(3).trim()
+      inCodeBlock = true
+      const label = codeLang ? escapeHtml(codeLang.toUpperCase()) : 'CODE'
+      parts.push(
+        `<div class="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/40 p-4">` +
+          `<div class="mb-2 text-xs font-semibold tracking-wide text-slate-300">${label}</div>` +
+          `<pre class="font-mono overflow-x-auto whitespace-pre-wrap break-words text-slate-100">`
+      )
+      return
+    }
+
+    if (inCodeBlock) {
+      parts.push(`${escapeHtml(line)}\n`)
+      return
+    }
+
+    const trimmed = line.trim()
+    if (!trimmed) {
+      parts.push('<div class="h-2"></div>')
+      return
+    }
+
+    if (trimmed.startsWith('# ')) {
+      const content = formatInlineHtml(escapeHtml(trimmed.slice(2).trim()))
+      parts.push(`<div class="mt-1 text-lg font-extrabold tracking-tight text-sky-200">${content}</div>`)
+      return
+    }
+
+    if (trimmed.startsWith('## ')) {
+      const content = formatInlineHtml(escapeHtml(trimmed.slice(3).trim()))
+      parts.push(`<div class="mt-4 text-base font-bold text-sky-100">${content}</div>`)
+      return
+    }
+
+    if (trimmed.startsWith('### ')) {
+      const content = formatInlineHtml(escapeHtml(trimmed.slice(4).trim()))
+      parts.push(`<div class="mt-3 text-sm font-semibold text-slate-100">${content}</div>`)
+      return
+    }
+
+    if (trimmed.startsWith('- ')) {
+      const content = formatInlineHtml(escapeHtml(trimmed.slice(2).trim()))
+      parts.push(
+        `<div class="flex gap-2 pl-1">` +
+          `<span class="select-none text-cyan-300">•</span>` +
+          `<div class="flex-1 text-slate-100">${content}</div>` +
+          `</div>`
+      )
+      return
+    }
+
+    const formattedLine = formatInlineHtml(escapeHtml(line))
+    parts.push(`<div class="text-slate-100">${formattedLine}</div>`)
+  })
+
+  closeCodeIfNeeded()
+  return parts.join('')
+}
+
 const parsePromptVariant = (value: string | null | undefined): PromptVariant => {
   switch (value) {
     case 'openai':
@@ -359,16 +456,16 @@ const generatePrompt = (): void => {
   const preset = parsePromptVariant(document.querySelector<HTMLSelectElement>('#promptPreset')?.value)
   const format = parsePromptFormat(document.querySelector<HTMLSelectElement>('#promptFormat')?.value)
   const prompt = buildPrompt(data, { variant: preset, format })
+  lastGeneratedPrompt = prompt
   const output = byId<HTMLDivElement>('promptOutput')
   const section = byId<HTMLElement>('outputSection')
-  output.textContent = prompt
+  output.innerHTML = renderPromptPreviewHtml(prompt)
   section.classList.remove('hidden')
   section.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const copyPrompt = async (): Promise<void> => {
-  const output = byId<HTMLDivElement>('promptOutput')
-  const text = output.textContent || ''
+  const text = lastGeneratedPrompt || byId<HTMLDivElement>('promptOutput').textContent || ''
   try {
     await navigator.clipboard.writeText(text)
     showNotification('Copied prompt to clipboard!')
