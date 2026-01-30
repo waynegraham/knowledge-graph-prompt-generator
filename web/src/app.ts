@@ -166,50 +166,67 @@ let state: FormDataModel = {
 }
 
 const STORAGE_KEY = 'kg-prompt-generator:v1'
+const SCHEMA_VERSION = 1
 let saveTimer: number | undefined
 
 const scheduleSave = (): void => {
   window.clearTimeout(saveTimer)
   saveTimer = window.setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION }))
     } catch (error) {
       console.warn('Unable to save state', error)
     }
   }, 250)
 }
 
+type VersionedState = FormDataModel & { schemaVersion?: number }
+
+const migrateState = (data: VersionedState): FormDataModel => {
+  const version = data.schemaVersion ?? 0
+  if (version === SCHEMA_VERSION) return data
+
+  let migrated: VersionedState = { ...data }
+
+  if (version < 1) {
+    migrated = { ...migrated, schemaVersion: 1 }
+  }
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    domain: migrated.domain ?? '',
+    goal: migrated.goal ?? '',
+    entities: (migrated.entities ?? []).map((entity) => ({
+      id: entity.id ?? createId(),
+      name: entity.name ?? '',
+      parent: entity.parent ?? '',
+      desc: entity.desc ?? '',
+      properties: (entity.properties ?? []).map((prop) => ({
+        id: prop.id ?? createId(),
+        name: prop.name ?? '',
+        type: prop.type ?? 'string',
+        constraint: (prop.constraint ?? 'optional') as PropertyDef['constraint'],
+      })),
+    })),
+    relationships: (migrated.relationships ?? []).map((rel) => ({
+      id: rel.id ?? createId(),
+      name: rel.name ?? '',
+      source: rel.source ?? '',
+      target: rel.target ?? '',
+      props: rel.props ?? '',
+    })),
+    inference: migrated.inference ?? '',
+    constraints: migrated.constraints ?? '',
+  }
+}
+
 const loadSavedState = (): FormDataModel | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<FormDataModel>
+    const parsed = JSON.parse(raw) as VersionedState
     if (!parsed || typeof parsed !== 'object') return null
-    return {
-      domain: parsed.domain ?? '',
-      goal: parsed.goal ?? '',
-      entities: (parsed.entities ?? []).map((entity) => ({
-        id: entity.id ?? createId(),
-        name: entity.name ?? '',
-        parent: entity.parent ?? '',
-        desc: entity.desc ?? '',
-        properties: (entity.properties ?? []).map((prop) => ({
-          id: prop.id ?? createId(),
-          name: prop.name ?? '',
-          type: prop.type ?? 'string',
-          constraint: (prop.constraint ?? 'optional') as PropertyDef['constraint'],
-        })),
-      })),
-      relationships: (parsed.relationships ?? []).map((rel) => ({
-        id: rel.id ?? createId(),
-        name: rel.name ?? '',
-        source: rel.source ?? '',
-        target: rel.target ?? '',
-        props: rel.props ?? '',
-      })),
-      inference: parsed.inference ?? '',
-      constraints: parsed.constraints ?? '',
-    }
+    return migrateState(parsed)
   } catch (error) {
     console.warn('Unable to load saved state', error)
     return null
@@ -423,6 +440,7 @@ const collectFormData = (): FormDataModel => {
 
 const setDefaults = (): void => {
   state = {
+    schemaVersion: SCHEMA_VERSION,
     domain: DEFAULT_DATA.domain,
     goal: DEFAULT_DATA.goal,
     entities: DEFAULT_DATA.entities.map((entity) => ({
@@ -794,7 +812,7 @@ const handleActionClick = (event: MouseEvent): void => {
     }
     case 'export-json': {
       syncStateFromDOM()
-      const payload = JSON.stringify(state, null, 2)
+      const payload = JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION }, null, 2)
       const blob = new Blob([payload], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -839,32 +857,8 @@ const handleFileImport = (event: Event): void => {
   const reader = new FileReader()
   reader.onload = () => {
     try {
-      const parsed = JSON.parse(String(reader.result)) as FormDataModel
-      state = {
-        domain: parsed.domain ?? '',
-        goal: parsed.goal ?? '',
-        entities: (parsed.entities ?? []).map((entity) => ({
-          id: entity.id ?? createId(),
-          name: entity.name ?? '',
-          parent: entity.parent ?? '',
-          desc: entity.desc ?? '',
-          properties: (entity.properties ?? []).map((prop) => ({
-            id: prop.id ?? createId(),
-            name: prop.name ?? '',
-            type: prop.type ?? 'string',
-            constraint: (prop.constraint ?? 'optional') as PropertyDef['constraint'],
-          })),
-        })),
-        relationships: (parsed.relationships ?? []).map((rel) => ({
-          id: rel.id ?? createId(),
-          name: rel.name ?? '',
-          source: rel.source ?? '',
-          target: rel.target ?? '',
-          props: rel.props ?? '',
-        })),
-        inference: parsed.inference ?? '',
-        constraints: parsed.constraints ?? '',
-      }
+      const parsed = JSON.parse(String(reader.result)) as VersionedState
+      state = migrateState(parsed)
       if (state.entities.length === 0) state.entities = [createEmptyEntity()]
       if (state.relationships.length === 0) state.relationships = [createEmptyRelationship()]
       renderAll()
@@ -888,6 +882,7 @@ export const initApp = (): void => {
   const saved = loadSavedState()
   state =
     saved ?? {
+      schemaVersion: SCHEMA_VERSION,
       domain: '',
       goal: '',
       entities: [createEmptyEntity()],

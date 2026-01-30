@@ -8,6 +8,8 @@ A small web app for building deterministic, high-precision knowledge-graph extra
 - Copy-to-clipboard output panel
 - Pure TypeScript modules (no framework)
 - Tailwind CSS v4 for styling
+- Autosave to localStorage with schema versioning + migrations
+- JSON import/export for configs
 
 ## Getting started
 ```bash
@@ -41,3 +43,4 @@ web/
 ## Notes
 - Determinism is achieved by sorting entity/relationship/property lists by name before rendering the prompt.
 - The original single-file prototype remains at the repo root as `index.html`.
+- Saved configs include a `schemaVersion` field and are migrated on load/import.

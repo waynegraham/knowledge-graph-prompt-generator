@@ -24,6 +24,7 @@ export interface RelationshipDef {
 }
 
 export interface FormDataModel {
+  schemaVersion?: number
   domain: string
   goal: string
   entities: EntityDef[]
