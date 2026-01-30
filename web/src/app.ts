@@ -570,6 +570,10 @@ const renderAll = (): void => {
   if (constraints) constraints.value = state.constraints
 }
 
+const revalidate = (): void => {
+  applyErrors(validateState(state))
+}
+
 const generatePrompt = (): void => {
   syncStateFromDOM()
   const isValid = applyErrors(validateState(state))
@@ -659,12 +663,14 @@ const handleActionClick = (event: MouseEvent): void => {
       syncStateFromDOM()
       state.entities = [...state.entities, createEmptyEntity()]
       renderEntities()
+      revalidate()
       break
     }
     case 'add-relationship': {
       syncStateFromDOM()
       state.relationships = [...state.relationships, createEmptyRelationship()]
       renderRelationships()
+      revalidate()
       break
     }
     case 'add-property': {
@@ -675,6 +681,7 @@ const handleActionClick = (event: MouseEvent): void => {
       if (!entity) return
       entity.properties = [...entity.properties, createEmptyProperty()]
       renderEntities()
+      revalidate()
       break
     }
     case 'remove-entity': {
@@ -684,6 +691,7 @@ const handleActionClick = (event: MouseEvent): void => {
       if (!id) return
       state.entities = state.entities.filter((entity) => entity.id !== id)
       renderEntities()
+      revalidate()
       break
     }
     case 'remove-relationship': {
@@ -693,6 +701,7 @@ const handleActionClick = (event: MouseEvent): void => {
       if (!id) return
       state.relationships = state.relationships.filter((rel) => rel.id !== id)
       renderRelationships()
+      revalidate()
       break
     }
     case 'remove-property': {
@@ -707,10 +716,12 @@ const handleActionClick = (event: MouseEvent): void => {
       entity.properties = entity.properties.filter((p) => p.id !== propId)
       if (entity.properties.length === 0) entity.properties = [createEmptyProperty()]
       renderEntities()
+      revalidate()
       break
     }
     case 'use-defaults': {
       setDefaults()
+      revalidate()
       break
     }
     case 'generate': {
@@ -730,6 +741,7 @@ const handleInputChange = (event: Event): void => {
   const target = event.target as HTMLElement
   if (!target || !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) return
   updateStateFromInput(target)
+  revalidate()
 }
 
 export const initApp = (): void => {
