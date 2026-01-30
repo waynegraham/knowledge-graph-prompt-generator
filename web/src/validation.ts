@@ -69,23 +69,62 @@ export const validateState = (data: FormDataModel): ValidationErrors => {
   return errors
 }
 
+let errorIdCounter = 0
+
 const clearErrors = (): void => {
+  const errorIds = new Set<string>()
   qsa<HTMLElement>('[data-error]').forEach((el) => {
+    if (!el.id) {
+      errorIdCounter += 1
+      el.id = `error-${errorIdCounter}`
+    }
+    errorIds.add(el.id)
     el.classList.add('hidden')
     el.textContent = ''
   })
   document
-    .querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('.border-red-400')
+    .querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+      'input, textarea, select'
+    )
     .forEach((el) => {
-      el.classList.remove('border-red-400')
-      el.classList.add('border-slate-200')
+      if (el.classList.contains('border-red-400')) {
+        el.classList.remove('border-red-400')
+        el.classList.add('border-slate-200')
+      }
+      el.removeAttribute('aria-invalid')
+      const describedBy = el.getAttribute('aria-describedby')
+      if (!describedBy) return
+      const next = describedBy
+        .split(/\s+/)
+        .filter((id) => id && !errorIds.has(id))
+        .join(' ')
+      if (next) {
+        el.setAttribute('aria-describedby', next)
+      } else {
+        el.removeAttribute('aria-describedby')
+      }
     })
 }
 
 const setError = (field: HTMLElement | null, errorEl: HTMLElement | null, message: string): void => {
   if (!field || !errorEl) return
+  if (!errorEl.id) {
+    errorIdCounter += 1
+    errorEl.id = `error-${errorIdCounter}`
+  }
   field.classList.add('border-red-400')
   field.classList.remove('border-slate-200')
+  field.setAttribute('aria-invalid', 'true')
+  const describedBy = field.getAttribute('aria-describedby')
+  if (!describedBy) {
+    field.setAttribute('aria-describedby', errorEl.id)
+  } else {
+    const tokens = describedBy.split(/\s+/)
+    if (!tokens.includes(errorEl.id)) {
+      tokens.push(errorEl.id)
+      field.setAttribute('aria-describedby', tokens.join(' '))
+    }
+  }
   errorEl.textContent = message
   errorEl.classList.remove('hidden')
 }
