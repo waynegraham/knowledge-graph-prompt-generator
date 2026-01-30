@@ -92,16 +92,25 @@ const updateSummary = (messages: string[]): void => {
   const summary = byId<HTMLDivElement>('validationSummary')
   if (messages.length === 0) {
     summary.classList.add('hidden')
-    summary.innerHTML = ''
+    summary.textContent = ''
     return
   }
   summary.classList.remove('hidden')
-  summary.innerHTML = `
-    <div class="font-semibold">Fix these issues:</div>
-    <ul class="mt-2 list-disc space-y-1 pl-5">
-      ${messages.map((message) => `<li>${message}</li>`).join('')}
-    </ul>
-  `
+  summary.textContent = ''
+
+  const title = document.createElement('div')
+  title.className = 'font-semibold'
+  title.textContent = 'Fix these issues:'
+
+  const list = document.createElement('ul')
+  list.className = 'mt-2 list-disc space-y-1 pl-5'
+  messages.forEach((message) => {
+    const item = document.createElement('li')
+    item.textContent = message
+    list.append(item)
+  })
+
+  summary.append(title, list)
 }
 
 export const applyErrors = (errors: ValidationErrors, data: FormDataModel): boolean => {
