@@ -39,6 +39,7 @@ const buttonBase =
 const buttonOutline = `${buttonBase} border-2 border-primary text-primary hover:border-secondary hover:text-secondary`
 const buttonPrimary = `${buttonBase} bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/30`
 const buttonRemove = 'rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold text-red-800 hover:bg-red-200'
+const buttonGhost = `${buttonBase} border border-slate-200 text-slate-600 hover:border-primary hover:text-primary`
 
 const appTemplate = `
   <div id="notification" class="hidden fixed right-8 top-8 z-50 rounded-xl bg-emerald-600 px-8 py-4 text-white shadow-lg" role="status" aria-live="polite"></div>
@@ -119,13 +120,20 @@ const appTemplate = `
         </div>
       </section>
 
-      <div class="flex flex-col items-center justify-center gap-4 pb-10 md:flex-row">
+      <div class="flex flex-col items-center justify-center gap-4 pb-10 md:flex-row md:flex-wrap">
         <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="use-defaults">
           📝 Use Default Values
         </button>
         <button type="button" class="${buttonPrimary} px-12 py-4 text-base md:text-lg" data-action="generate">
           ✨ Generate Professional Prompt
         </button>
+        <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="export-json">
+          ⤓ Export JSON
+        </button>
+        <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="import-json">
+          ⇪ Import JSON
+        </button>
+        <input type="file" id="jsonImport" accept="application/json" class="hidden" />
       </div>
     </form>
 
@@ -155,6 +163,57 @@ let state: FormDataModel = {
   relationships: [],
   inference: '',
   constraints: '',
+}
+
+const STORAGE_KEY = 'kg-prompt-generator:v1'
+let saveTimer: number | undefined
+
+const scheduleSave = (): void => {
+  window.clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    } catch (error) {
+      console.warn('Unable to save state', error)
+    }
+  }, 250)
+}
+
+const loadSavedState = (): FormDataModel | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<FormDataModel>
+    if (!parsed || typeof parsed !== 'object') return null
+    return {
+      domain: parsed.domain ?? '',
+      goal: parsed.goal ?? '',
+      entities: (parsed.entities ?? []).map((entity) => ({
+        id: entity.id ?? createId(),
+        name: entity.name ?? '',
+        parent: entity.parent ?? '',
+        desc: entity.desc ?? '',
+        properties: (entity.properties ?? []).map((prop) => ({
+          id: prop.id ?? createId(),
+          name: prop.name ?? '',
+          type: prop.type ?? 'string',
+          constraint: (prop.constraint ?? 'optional') as PropertyDef['constraint'],
+        })),
+      })),
+      relationships: (parsed.relationships ?? []).map((rel) => ({
+        id: rel.id ?? createId(),
+        name: rel.name ?? '',
+        source: rel.source ?? '',
+        target: rel.target ?? '',
+        props: rel.props ?? '',
+      })),
+      inference: parsed.inference ?? '',
+      constraints: parsed.constraints ?? '',
+    }
+  } catch (error) {
+    console.warn('Unable to load saved state', error)
+    return null
+  }
 }
 
 const showNotification = (message: string): void => {
@@ -310,6 +369,7 @@ const renderRelationships = (): void => {
 
 const syncStateFromDOM = (): void => {
   state = collectFormData()
+  scheduleSave()
 }
 
 const collectFormData = (): FormDataModel => {
@@ -391,6 +451,7 @@ const setDefaults = (): void => {
   renderAll()
 
   showNotification('✅ Form populated with default research values!')
+  scheduleSave()
 }
 
 type ValidationErrors = {
@@ -648,6 +709,7 @@ const updateStateFromInput = (target: HTMLElement): void => {
     if (field === 'rel-target') rel.target = input.value
     if (field === 'rel-props') rel.props = input.value
   }
+  scheduleSave()
 }
 
 const handleActionClick = (event: MouseEvent): void => {
@@ -664,6 +726,7 @@ const handleActionClick = (event: MouseEvent): void => {
       state.entities = [...state.entities, createEmptyEntity()]
       renderEntities()
       revalidate()
+      scheduleSave()
       break
     }
     case 'add-relationship': {
@@ -671,6 +734,7 @@ const handleActionClick = (event: MouseEvent): void => {
       state.relationships = [...state.relationships, createEmptyRelationship()]
       renderRelationships()
       revalidate()
+      scheduleSave()
       break
     }
     case 'add-property': {
@@ -682,6 +746,7 @@ const handleActionClick = (event: MouseEvent): void => {
       entity.properties = [...entity.properties, createEmptyProperty()]
       renderEntities()
       revalidate()
+      scheduleSave()
       break
     }
     case 'remove-entity': {
@@ -692,6 +757,7 @@ const handleActionClick = (event: MouseEvent): void => {
       state.entities = state.entities.filter((entity) => entity.id !== id)
       renderEntities()
       revalidate()
+      scheduleSave()
       break
     }
     case 'remove-relationship': {
@@ -702,6 +768,7 @@ const handleActionClick = (event: MouseEvent): void => {
       state.relationships = state.relationships.filter((rel) => rel.id !== id)
       renderRelationships()
       revalidate()
+      scheduleSave()
       break
     }
     case 'remove-property': {
@@ -717,11 +784,32 @@ const handleActionClick = (event: MouseEvent): void => {
       if (entity.properties.length === 0) entity.properties = [createEmptyProperty()]
       renderEntities()
       revalidate()
+      scheduleSave()
       break
     }
     case 'use-defaults': {
       setDefaults()
       revalidate()
+      break
+    }
+    case 'export-json': {
+      syncStateFromDOM()
+      const payload = JSON.stringify(state, null, 2)
+      const blob = new Blob([payload], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'kg-prompt-config.json'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      showNotification('Exported configuration JSON.')
+      break
+    }
+    case 'import-json': {
+      const input = document.getElementById('jsonImport') as HTMLInputElement | null
+      if (input) input.click()
       break
     }
     case 'generate': {
@@ -744,21 +832,76 @@ const handleInputChange = (event: Event): void => {
   revalidate()
 }
 
+const handleFileImport = (event: Event): void => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result)) as FormDataModel
+      state = {
+        domain: parsed.domain ?? '',
+        goal: parsed.goal ?? '',
+        entities: (parsed.entities ?? []).map((entity) => ({
+          id: entity.id ?? createId(),
+          name: entity.name ?? '',
+          parent: entity.parent ?? '',
+          desc: entity.desc ?? '',
+          properties: (entity.properties ?? []).map((prop) => ({
+            id: prop.id ?? createId(),
+            name: prop.name ?? '',
+            type: prop.type ?? 'string',
+            constraint: (prop.constraint ?? 'optional') as PropertyDef['constraint'],
+          })),
+        })),
+        relationships: (parsed.relationships ?? []).map((rel) => ({
+          id: rel.id ?? createId(),
+          name: rel.name ?? '',
+          source: rel.source ?? '',
+          target: rel.target ?? '',
+          props: rel.props ?? '',
+        })),
+        inference: parsed.inference ?? '',
+        constraints: parsed.constraints ?? '',
+      }
+      if (state.entities.length === 0) state.entities = [createEmptyEntity()]
+      if (state.relationships.length === 0) state.relationships = [createEmptyRelationship()]
+      renderAll()
+      revalidate()
+      scheduleSave()
+      showNotification('Imported configuration JSON.')
+    } catch (error) {
+      showNotification('Invalid JSON file. Please check the format.')
+      console.error(error)
+    } finally {
+      input.value = ''
+    }
+  }
+  reader.readAsText(file)
+}
+
 export const initApp = (): void => {
   if (!appRoot) return
   appRoot.innerHTML = appTemplate
 
-  state = {
-    domain: '',
-    goal: '',
-    entities: [createEmptyEntity()],
-    relationships: [createEmptyRelationship()],
-    inference: '',
-    constraints: '',
-  }
+  const saved = loadSavedState()
+  state =
+    saved ?? {
+      domain: '',
+      goal: '',
+      entities: [createEmptyEntity()],
+      relationships: [createEmptyRelationship()],
+      inference: '',
+      constraints: '',
+    }
 
   renderAll()
+  revalidate()
 
   document.addEventListener('click', handleActionClick)
   document.addEventListener('input', handleInputChange)
+  document.addEventListener('change', handleInputChange)
+  const importInput = document.getElementById('jsonImport')
+  if (importInput) importInput.addEventListener('change', handleFileImport)
 }
