@@ -45,6 +45,7 @@ export const ACTIONS = {
 export type ActionName = (typeof ACTIONS)[keyof typeof ACTIONS]
 
 let lastGeneratedPrompt = ''
+const PROMPT_STORAGE_KEY = 'kg-prompt-generator:lastPrompt'
 
 const appTemplate = `
   <div id="notification" class="hidden fixed right-8 top-8 z-50 rounded-xl bg-emerald-600 px-8 py-4 text-white shadow-lg" role="status" aria-live="polite"></div>
@@ -52,6 +53,18 @@ const appTemplate = `
     <header class="bg-gradient-to-br from-primary to-secondary px-10 py-14 text-center text-white">
       <h1 class="text-3xl font-extrabold tracking-tight md:text-4xl">🧠 Advanced Knowledge Graph Prompt Generator</h1>
       <p class="mt-3 text-lg/relaxed text-white/90">Design multi-layered Ontologies and generate high-precision Extraction Prompts</p>
+      <p class="mt-3 text-sm text-white/85">
+        This project helps teams turn messy domain knowledge into a consistent extraction spec, so every model run produces
+        structured, reusable graphs instead of one-off answers.
+      </p>
+      <div class="mt-6 flex flex-wrap justify-center gap-3 text-sm font-semibold">
+        <a
+          class="rounded-full border border-white/70 px-5 py-2 text-white/90 transition hover:border-white hover:text-white"
+          href="tutorial.html"
+        >
+          🧭 Guided Project Walkthrough
+        </a>
+      </div>
     </header>
 
     <form id="kgForm" class="p-10" novalidate>
@@ -184,6 +197,10 @@ const appTemplate = `
       </div>
       <p class="mb-4 text-xs text-slate-300">Preview is formatted for readability; clipboard copies the raw prompt.</p>
       <div id="promptOutput" class="kg-prompt max-h-[700px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-6 font-sans text-sm leading-6 text-slate-100"></div>
+      <p class="mt-4 text-xs text-slate-300">
+        Paste this prompt into your model's system (or developer) message, then use your source text as the user input.
+        Save the config JSON so you can regenerate or refine the prompt later.
+      </p>
     </section>
   </div>
 `
@@ -565,6 +582,11 @@ const generatePrompt = (): void => {
   const format = parsePromptFormat(document.querySelector<HTMLSelectElement>('#promptFormat')?.value)
   const prompt = buildPrompt(data, { variant: preset, format })
   lastGeneratedPrompt = prompt
+  try {
+    localStorage.setItem(PROMPT_STORAGE_KEY, prompt)
+  } catch (error) {
+    console.warn('Unable to store prompt', error)
+  }
   const output = byId<HTMLDivElement>('promptOutput')
   const section = byId<HTMLElement>('outputSection')
   output.innerHTML = renderPromptPreviewHtml(prompt)
