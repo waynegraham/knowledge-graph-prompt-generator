@@ -6,14 +6,12 @@ import {
   createEmptyEntity,
   createEmptyProperty,
   createEmptyRelationship,
-  createId,
   getState,
   initState,
   migrateState,
   scheduleSave,
   serializeState,
   setState,
-  SCHEMA_VERSION,
 } from './state'
 import { applyErrors, validateState } from './validation'
 import type { FormDataModel, EntityDef, PropertyDef, RelationshipDef } from './types'
@@ -277,6 +275,9 @@ const createRelationshipItem = (data: RelationshipDef): HTMLDivElement => {
   return div
 }
 
+const findEntityItem = (entityId: string): HTMLDivElement | null =>
+  document.querySelector<HTMLDivElement>(`.entity-item[data-entity-id="${entityId}"]`)
+
 const renderEntities = (): void => {
   const list = byId<HTMLDivElement>('entitiesList')
   list.innerHTML = ''
@@ -300,69 +301,12 @@ const renderAll = (): void => {
   byId<HTMLTextAreaElement>('globalConstraints').value = data.constraints
 }
 
-const collectFormData = (): FormDataModel => {
-  const domain = byId<HTMLInputElement>('domainName').value
-  const goal = byId<HTMLTextAreaElement>('primaryGoal').value
-  const inference = byId<HTMLTextAreaElement>('inferenceRules').value
-  const constraints = byId<HTMLTextAreaElement>('globalConstraints').value
-
-  const entities: EntityDef[] = Array.from(
-    document.querySelectorAll<HTMLDivElement>('#entitiesList .entity-item')
-  ).map((item) => {
-    const entityId = item.dataset.entityId || createId()
-    const properties = Array.from(item.querySelectorAll<HTMLDivElement>('.sub-item')).map((p) => ({
-      id: p.dataset.propId || createId(),
-      name: p.querySelector<HTMLInputElement>('.prop-name')?.value ?? '',
-      type: p.querySelector<HTMLSelectElement>('.prop-type')?.value ?? 'string',
-      constraint: (p.querySelector<HTMLSelectElement>('.prop-constraint')?.value ?? 'optional') as
-        | 'optional'
-        | 'required'
-        | 'unique',
-    }))
-
-    return {
-      id: entityId,
-      name: item.querySelector<HTMLInputElement>('.entity-name')?.value ?? '',
-      parent: item.querySelector<HTMLInputElement>('.entity-parent')?.value ?? '',
-      desc: item.querySelector<HTMLTextAreaElement>('.entity-desc')?.value ?? '',
-      properties,
-    }
-  })
-
-  const relationships: RelationshipDef[] = Array.from(
-    document.querySelectorAll<HTMLDivElement>('#relationshipsList .relationship-item')
-  ).map((item) => ({
-    id: item.dataset.relationshipId || createId(),
-    name: item.querySelector<HTMLInputElement>('.rel-name')?.value ?? '',
-    source: item.querySelector<HTMLInputElement>('.rel-source')?.value ?? '',
-    target: item.querySelector<HTMLInputElement>('.rel-target')?.value ?? '',
-    props: item.querySelector<HTMLInputElement>('.rel-props')?.value ?? '',
-  }))
-
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    domain,
-    goal,
-    entities,
-    relationships,
-    inference,
-    constraints,
-  }
-}
-
-const syncStateFromDOM = (): void => {
-  const next = collectFormData()
-  setState(next)
-  scheduleSave(next)
-}
-
 const revalidate = (): void => {
   const data = getState()
   applyErrors(validateState(data), data)
 }
 
 const generatePrompt = (): void => {
-  syncStateFromDOM()
   const data = getState()
   const isValid = applyErrors(validateState(data), data)
   if (!isValid) {
@@ -451,7 +395,6 @@ const handleActionClick = (event: MouseEvent): void => {
 
   switch (action) {
     case ACTIONS.addEntity: {
-      syncStateFromDOM()
       const data = getState()
       data.entities = [...data.entities, createEmptyEntity()]
       setState(data)
@@ -461,7 +404,6 @@ const handleActionClick = (event: MouseEvent): void => {
       break
     }
     case ACTIONS.addRelationship: {
-      syncStateFromDOM()
       const data = getState()
       data.relationships = [...data.relationships, createEmptyRelationship()]
       setState(data)
@@ -471,21 +413,22 @@ const handleActionClick = (event: MouseEvent): void => {
       break
     }
     case ACTIONS.addProperty: {
-      syncStateFromDOM()
       const entityId = actionButton.dataset.entityId
       if (!entityId) return
       const data = getState()
       const entity = data.entities.find((e) => e.id === entityId)
       if (!entity) return
-      entity.properties = [...entity.properties, createEmptyProperty()]
+      const newProp = createEmptyProperty()
+      entity.properties = [...entity.properties, newProp]
       setState(data)
-      renderEntities()
+      const entityItem = findEntityItem(entityId)
+      const propList = entityItem?.querySelector<HTMLDivElement>('.sub-item-list')
+      if (propList) propList.appendChild(createPropertyRow(newProp))
       revalidate()
       scheduleSave(data)
       break
     }
     case ACTIONS.removeEntity: {
-      syncStateFromDOM()
       const item = actionButton.closest<HTMLElement>('.entity-item')
       const id = item?.dataset.entityId
       if (!id) return
@@ -498,7 +441,6 @@ const handleActionClick = (event: MouseEvent): void => {
       break
     }
     case ACTIONS.removeRelationship: {
-      syncStateFromDOM()
       const item = actionButton.closest<HTMLElement>('.relationship-item')
       const id = item?.dataset.relationshipId
       if (!id) return
@@ -511,7 +453,6 @@ const handleActionClick = (event: MouseEvent): void => {
       break
     }
     case ACTIONS.removeProperty: {
-      syncStateFromDOM()
       const prop = actionButton.closest<HTMLElement>('.sub-item')
       const entityItem = actionButton.closest<HTMLElement>('.entity-item')
       const entityId = entityItem?.dataset.entityId
@@ -521,9 +462,15 @@ const handleActionClick = (event: MouseEvent): void => {
       const entity = data.entities.find((e) => e.id === entityId)
       if (!entity) return
       entity.properties = entity.properties.filter((p) => p.id !== propId)
-      if (entity.properties.length === 0) entity.properties = [createEmptyProperty()]
+      let createdFallback = false
+      if (entity.properties.length === 0) {
+        entity.properties = [createEmptyProperty()]
+        createdFallback = true
+      }
       setState(data)
-      renderEntities()
+      const list = entityItem?.querySelector<HTMLDivElement>('.sub-item-list')
+      prop?.remove()
+      if (createdFallback && list) list.appendChild(createPropertyRow(entity.properties[0]))
       revalidate()
       scheduleSave(data)
       break
@@ -538,7 +485,6 @@ const handleActionClick = (event: MouseEvent): void => {
       break
     }
     case ACTIONS.exportJson: {
-      syncStateFromDOM()
       const data = getState()
       const payload = JSON.stringify(serializeState(data), null, 2)
       const blob = new Blob([payload], { type: 'application/json' })
