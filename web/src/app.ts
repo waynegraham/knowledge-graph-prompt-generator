@@ -1,5 +1,6 @@
 import type { FormDataModel, EntityDef, PropertyDef, RelationshipDef } from './types'
 import { buildPrompt } from './prompt'
+import { byId, qs, qsa } from './dom'
 
 const DEFAULT_DATA = {
   domain: 'Medical Research & Clinical Trials',
@@ -246,8 +247,7 @@ const loadSavedState = (): FormDataModel | null => {
 }
 
 const showNotification = (message: string): void => {
-  const nav = document.getElementById('notification')
-  if (!nav) return
+  const nav = byId<HTMLDivElement>('notification')
   nav.textContent = message
   nav.classList.remove('hidden')
   window.setTimeout(() => {
@@ -383,15 +383,13 @@ const createRelationshipItem = (data: RelationshipDef): HTMLDivElement => {
 }
 
 const renderEntities = (): void => {
-  const list = document.getElementById('entitiesList')
-  if (!list) return
+  const list = byId<HTMLDivElement>('entitiesList')
   list.innerHTML = ''
   state.entities.forEach((entity) => list.appendChild(createEntityItem(entity)))
 }
 
 const renderRelationships = (): void => {
-  const list = document.getElementById('relationshipsList')
-  if (!list) return
+  const list = byId<HTMLDivElement>('relationshipsList')
   list.innerHTML = ''
   state.relationships.forEach((rel) => list.appendChild(createRelationshipItem(rel)))
 }
@@ -402,13 +400,13 @@ const syncStateFromDOM = (): void => {
 }
 
 const collectFormData = (): FormDataModel => {
-  const domain = (document.getElementById('domainName') as HTMLInputElement).value
-  const goal = (document.getElementById('primaryGoal') as HTMLTextAreaElement).value
-  const inference = (document.getElementById('inferenceRules') as HTMLTextAreaElement).value
-  const constraints = (document.getElementById('globalConstraints') as HTMLTextAreaElement).value
+  const domain = byId<HTMLInputElement>('domainName').value
+  const goal = byId<HTMLTextAreaElement>('primaryGoal').value
+  const inference = byId<HTMLTextAreaElement>('inferenceRules').value
+  const constraints = byId<HTMLTextAreaElement>('globalConstraints').value
 
   const entities: EntityDef[] = Array.from(
-    document.querySelectorAll<HTMLDivElement>('#entitiesList .entity-item')
+    qsa<HTMLDivElement>('#entitiesList .entity-item')
   ).map((item) => {
     const entityId = item.dataset.entityId || createId()
     const properties = Array.from(item.querySelectorAll<HTMLDivElement>('.sub-item')).map((p) => ({
@@ -431,7 +429,7 @@ const collectFormData = (): FormDataModel => {
   })
 
   const relationships: RelationshipDef[] = Array.from(
-    document.querySelectorAll<HTMLDivElement>('#relationshipsList .relationship-item')
+    qsa<HTMLDivElement>('#relationshipsList .relationship-item')
   ).map((item) => ({
     id: item.dataset.relationshipId || createId(),
     name: item.querySelector<HTMLInputElement>('.rel-name')?.value ?? '',
@@ -551,7 +549,7 @@ const validateState = (data: FormDataModel): ValidationErrors => {
 }
 
 const clearErrors = (): void => {
-  document.querySelectorAll('[data-error]').forEach((el) => {
+  qsa<HTMLElement>('[data-error]').forEach((el) => {
     el.classList.add('hidden')
     el.textContent = ''
   })
@@ -574,8 +572,7 @@ const setError = (field: HTMLElement | null, errorEl: HTMLElement | null, messag
 }
 
 const updateSummary = (messages: string[]): void => {
-  const summary = document.getElementById('validationSummary')
-  if (!summary) return
+  const summary = byId<HTMLDivElement>('validationSummary')
   if (messages.length === 0) {
     summary.classList.add('hidden')
     summary.innerHTML = ''
@@ -595,20 +592,20 @@ const applyErrors = (errors: ValidationErrors): boolean => {
 
   if (errors.domain) {
     setError(
-      document.getElementById('domainName'),
-      document.querySelector('[data-error="domain"]'),
+      byId<HTMLInputElement>('domainName'),
+      qs<HTMLElement>('[data-error="domain"]'),
       errors.domain
     )
   }
   if (errors.goal) {
     setError(
-      document.getElementById('primaryGoal'),
-      document.querySelector('[data-error="goal"]'),
+      byId<HTMLTextAreaElement>('primaryGoal'),
+      qs<HTMLElement>('[data-error="goal"]'),
       errors.goal
     )
   }
 
-  document.querySelectorAll<HTMLDivElement>('.entity-item').forEach((item) => {
+  qsa<HTMLDivElement>('.entity-item').forEach((item) => {
     const id = item.dataset.entityId
     if (!id) return
     const message = errors.entityNames[id]
@@ -620,7 +617,7 @@ const applyErrors = (errors: ValidationErrors): boolean => {
     )
   })
 
-  document.querySelectorAll<HTMLDivElement>('.relationship-item').forEach((item) => {
+  qsa<HTMLDivElement>('.relationship-item').forEach((item) => {
     const id = item.dataset.relationshipId
     if (!id) return
 
@@ -717,15 +714,15 @@ const renderAll = (): void => {
   renderEntities()
   renderRelationships()
 
-  const domain = document.getElementById('domainName') as HTMLInputElement
-  const goal = document.getElementById('primaryGoal') as HTMLTextAreaElement
-  const inference = document.getElementById('inferenceRules') as HTMLTextAreaElement
-  const constraints = document.getElementById('globalConstraints') as HTMLTextAreaElement
+  const domain = byId<HTMLInputElement>('domainName')
+  const goal = byId<HTMLTextAreaElement>('primaryGoal')
+  const inference = byId<HTMLTextAreaElement>('inferenceRules')
+  const constraints = byId<HTMLTextAreaElement>('globalConstraints')
 
-  if (domain) domain.value = state.domain
-  if (goal) goal.value = state.goal
-  if (inference) inference.value = state.inference
-  if (constraints) constraints.value = state.constraints
+  domain.value = state.domain
+  goal.value = state.goal
+  inference.value = state.inference
+  constraints.value = state.constraints
 }
 
 const revalidate = (): void => {
@@ -741,17 +738,15 @@ const generatePrompt = (): void => {
   }
 
   const prompt = buildPrompt(state)
-  const output = document.getElementById('promptOutput')
-  const section = document.getElementById('outputSection')
-  if (!output || !section) return
+  const output = byId<HTMLDivElement>('promptOutput')
+  const section = byId<HTMLElement>('outputSection')
   output.textContent = prompt
   section.classList.remove('hidden')
   section.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const copyPrompt = async (): Promise<void> => {
-  const output = document.getElementById('promptOutput')
-  if (!output) return
+  const output = byId<HTMLDivElement>('promptOutput')
   const text = output.textContent || ''
   try {
     await navigator.clipboard.writeText(text)
@@ -905,8 +900,8 @@ const handleActionClick = (event: MouseEvent): void => {
       break
     }
     case 'import-json': {
-      const input = document.getElementById('jsonImport') as HTMLInputElement | null
-      if (input) input.click()
+      const input = byId<HTMLInputElement>('jsonImport')
+      input.click()
       break
     }
     case 'generate': {
@@ -976,6 +971,6 @@ export const initApp = (): void => {
   document.addEventListener('click', handleActionClick)
   document.addEventListener('input', handleInputChange)
   document.addEventListener('change', handleInputChange)
-  const importInput = document.getElementById('jsonImport')
-  if (importInput) importInput.addEventListener('change', handleFileImport)
+  const importInput = byId<HTMLInputElement>('jsonImport')
+  importInput.addEventListener('change', handleFileImport)
 }
