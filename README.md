@@ -5,6 +5,7 @@ A small web app for building deterministic, high-precision knowledge-graph extra
 ## Features
 - Structured form for domains, entities, properties, relationships, and rules
 - Deterministic prompt output (sorted, normalized)
+- Case-insensitive validation with canonicalized names
 - Copy-to-clipboard output panel
 - Pure TypeScript modules (no framework)
 - Tailwind CSS v4 for styling
@@ -16,6 +17,12 @@ A small web app for building deterministic, high-precision knowledge-graph extra
 cd web
 npm install
 npm run dev
+```
+
+## Tests
+```bash
+cd web
+npm test
 ```
 
 ## Build
@@ -33,10 +40,13 @@ This repo includes a GitHub Actions workflow that builds the app from `web/` and
 web/
   index.html
   src/
-    app.ts        # UI + event handling
-    prompt.ts     # deterministic prompt builder
-    types.ts      # data model types
-    main.ts       # app entry point
+    app.ts         # UI bootstrap
+    ui.ts          # UI + event handling
+    validation.ts  # validation + summary UI
+    state.ts       # state, migrations, persistence
+    prompt.ts      # deterministic prompt builder
+    types.ts       # data model types
+    main.ts        # app entry point
     style.css
 ```
 
