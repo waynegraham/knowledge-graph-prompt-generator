@@ -3,6 +3,7 @@ import type { FormDataModel, EntityDef, PropertyDef, RelationshipDef } from './t
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
 
 const clean = (value: string): string => value.trim()
+const canonicalizeName = (value: string): string => value.trim().toLowerCase()
 
 const escapeText = (value: string): string =>
   value.replace(/```/g, '\\`\\`\\`').replace(/\r\n/g, '\n')
@@ -31,6 +32,7 @@ const normalizeEntities = (entities: EntityDef[]): EntityDef[] =>
       .map((e) => ({
         ...e,
         name: escapeText(clean(e.name)),
+        canonicalName: canonicalizeName(e.canonicalName ?? clean(e.name)),
         parent: escapeText(clean(e.parent)),
         desc: escapeText(clean(e.desc)),
         properties: normalizeProps(e.properties),
@@ -38,16 +40,29 @@ const normalizeEntities = (entities: EntityDef[]): EntityDef[] =>
       .filter((e) => e.name.length > 0)
   )
 
-const normalizeRelationships = (rels: RelationshipDef[]): RelationshipDef[] =>
+const normalizeRelationships = (
+  rels: RelationshipDef[],
+  entityNameMap: Map<string, string>
+): RelationshipDef[] =>
   sortByName(
     rels
-      .map((r) => ({
-        ...r,
-        name: escapeText(clean(r.name)),
-        source: escapeText(clean(r.source)),
-        target: escapeText(clean(r.target)),
-        props: escapeText(clean(r.props)),
-      }))
+      .map((r) => {
+        const name = clean(r.name)
+        const sourceRaw = clean(r.source)
+        const targetRaw = clean(r.target)
+        const canonicalSource = canonicalizeName(r.canonicalSource ?? sourceRaw)
+        const canonicalTarget = canonicalizeName(r.canonicalTarget ?? targetRaw)
+        return {
+          ...r,
+          name: escapeText(name),
+          canonicalName: canonicalizeName(r.canonicalName ?? name),
+          source: entityNameMap.get(canonicalSource) ?? escapeText(sourceRaw),
+          canonicalSource,
+          target: entityNameMap.get(canonicalTarget) ?? escapeText(targetRaw),
+          canonicalTarget,
+          props: escapeText(clean(r.props)),
+        }
+      })
       .filter((r) => r.name.length > 0)
   )
 
@@ -72,7 +87,8 @@ export const buildPrompt = (data: FormDataModel): string => {
   const domain = escapeText(clean(data.domain))
   const goal = escapeText(clean(data.goal))
   const entities = normalizeEntities(data.entities)
-  const relationships = normalizeRelationships(data.relationships)
+  const entityNameMap = new Map(entities.map((entity) => [entity.canonicalName ?? '', entity.name]))
+  const relationships = normalizeRelationships(data.relationships, entityNameMap)
   const inference = escapeText(clean(data.inference))
   const constraints = escapeText(clean(data.constraints))
 

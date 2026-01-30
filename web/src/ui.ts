@@ -11,6 +11,7 @@ import {
   initState,
   migrateState,
   scheduleSave,
+  serializeState,
   setState,
   SCHEMA_VERSION,
 } from './state'
@@ -539,7 +540,7 @@ const handleActionClick = (event: MouseEvent): void => {
     case ACTIONS.exportJson: {
       syncStateFromDOM()
       const data = getState()
-      const payload = JSON.stringify({ ...data, schemaVersion: SCHEMA_VERSION }, null, 2)
+      const payload = JSON.stringify(serializeState(data), null, 2)
       const blob = new Blob([payload], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')

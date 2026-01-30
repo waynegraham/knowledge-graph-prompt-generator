@@ -2,6 +2,7 @@ import type { FormDataModel, EntityDef, PropertyDef, RelationshipDef } from './t
 
 const STORAGE_KEY = 'kg-prompt-generator:v1'
 export const SCHEMA_VERSION = 1
+const canonicalizeName = (value: string): string => value.trim().toLowerCase()
 
 const DEFAULT_DATA = {
   domain: 'Medical Research & Clinical Trials',
@@ -121,7 +122,7 @@ export const scheduleSave = (data: FormDataModel): void => {
   window.clearTimeout(saveTimer)
   saveTimer = window.setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, schemaVersion: SCHEMA_VERSION }))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(data)))
     } catch (error) {
       console.warn('Unable to save state', error)
     }
@@ -175,5 +176,40 @@ export const initState = (): FormDataModel => {
 export const getState = (): FormDataModel => state
 
 export const setState = (nextState: FormDataModel): void => {
-  state = nextState
+  state = {
+    ...nextState,
+    entities: nextState.entities.map((entity) => ({
+      ...entity,
+      canonicalName: canonicalizeName(entity.name),
+      properties: entity.properties.map((prop) => ({ ...prop })),
+    })),
+    relationships: nextState.relationships.map((rel) => ({
+      ...rel,
+      canonicalName: canonicalizeName(rel.name),
+      canonicalSource: canonicalizeName(rel.source),
+      canonicalTarget: canonicalizeName(rel.target),
+    })),
+  }
 }
+
+export const serializeState = (data: FormDataModel): FormDataModel => ({
+  schemaVersion: SCHEMA_VERSION,
+  domain: data.domain,
+  goal: data.goal,
+  entities: data.entities.map((entity) => ({
+    id: entity.id,
+    name: entity.name,
+    parent: entity.parent,
+    desc: entity.desc,
+    properties: entity.properties.map((prop) => ({ ...prop })),
+  })),
+  relationships: data.relationships.map((rel) => ({
+    id: rel.id,
+    name: rel.name,
+    source: rel.source,
+    target: rel.target,
+    props: rel.props,
+  })),
+  inference: data.inference,
+  constraints: data.constraints,
+})

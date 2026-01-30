@@ -10,6 +10,7 @@ export interface PropertyDef {
 export interface EntityDef {
   id: string
   name: string
+  canonicalName?: string
   parent: string
   desc: string
   properties: PropertyDef[]
@@ -18,8 +19,11 @@ export interface EntityDef {
 export interface RelationshipDef {
   id: string
   name: string
+  canonicalName?: string
   source: string
+  canonicalSource?: string
   target: string
+  canonicalTarget?: string
   props: string
 }
 

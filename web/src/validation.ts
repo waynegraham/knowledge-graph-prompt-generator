@@ -11,6 +11,8 @@ export type ValidationErrors = {
 }
 
 const normalizeName = (value: string): string => value.trim().toLowerCase()
+const getCanonicalName = (value: string, canonical?: string): string =>
+  canonical ?? normalizeName(value)
 
 export const validateState = (data: FormDataModel): ValidationErrors => {
   const errors: ValidationErrors = {
@@ -25,7 +27,7 @@ export const validateState = (data: FormDataModel): ValidationErrors => {
 
   const entityNameMap = new Map<string, string>()
   data.entities.forEach((entity) => {
-    const normalized = normalizeName(entity.name)
+    const normalized = getCanonicalName(entity.name, entity.canonicalName)
     if (!normalized) {
       errors.entityNames[entity.id] = 'Class name is required.'
       return
@@ -39,7 +41,7 @@ export const validateState = (data: FormDataModel): ValidationErrors => {
 
   const relationshipNameMap = new Map<string, string>()
   data.relationships.forEach((rel) => {
-    const normalized = normalizeName(rel.name)
+    const normalized = getCanonicalName(rel.name, rel.canonicalName)
     if (!normalized) {
       errors.relationshipNames[rel.id] = 'Relationship name is required.'
     } else if (relationshipNameMap.has(normalized)) {
@@ -48,8 +50,8 @@ export const validateState = (data: FormDataModel): ValidationErrors => {
       relationshipNameMap.set(normalized, rel.id)
     }
 
-    const sourceName = normalizeName(rel.source)
-    const targetName = normalizeName(rel.target)
+    const sourceName = getCanonicalName(rel.source, rel.canonicalSource)
+    const targetName = getCanonicalName(rel.target, rel.canonicalTarget)
 
     if (!sourceName) {
       errors.relationshipSources[rel.id] = 'Source class is required.'
@@ -158,7 +160,7 @@ export const applyErrors = (errors: ValidationErrors, data: FormDataModel): bool
     const duplicates = new Set<string>()
     const counts = new Map<string, number>()
     data.entities.forEach((entity) => {
-      const name = normalizeName(entity.name)
+      const name = getCanonicalName(entity.name, entity.canonicalName)
       if (!name) return
       counts.set(name, (counts.get(name) ?? 0) + 1)
     })
@@ -180,7 +182,7 @@ export const applyErrors = (errors: ValidationErrors, data: FormDataModel): bool
     const duplicates = new Set<string>()
     const counts = new Map<string, number>()
     data.relationships.forEach((rel) => {
-      const name = normalizeName(rel.name)
+      const name = getCanonicalName(rel.name, rel.canonicalName)
       if (!name) return
       counts.set(name, (counts.get(name) ?? 0) + 1)
     })
