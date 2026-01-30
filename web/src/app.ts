@@ -56,7 +56,8 @@ const appTemplate = `
         </div>
         <div class="mb-5">
           <label for="domainName" class="${labelClass}">Domain Name *</label>
-          <input type="text" id="domainName" required placeholder="e.g., Financial Audit, Medical Research" class="${inputClass}" />
+          <input type="text" id="domainName" required placeholder="e.g., Financial Audit, Medical Research" class="${inputClass}" data-field="domain" />
+          <div class="mt-2 hidden text-xs text-red-600" data-error="domain"></div>
         </div>
         <div>
           <label for="primaryGoal" class="${labelClass}">Extraction Goal *</label>
@@ -65,7 +66,9 @@ const appTemplate = `
             required
             placeholder="e.g., Build a treatment-disease mapping with clinical outcome metrics..."
             class="${inputClass} min-h-[120px] resize-y"
+            data-field="goal"
           ></textarea>
+          <div class="mt-2 hidden text-xs text-red-600" data-error="goal"></div>
         </div>
       </section>
 
@@ -101,6 +104,7 @@ const appTemplate = `
             id="inferenceRules"
             placeholder="e.g., If X is BORN_IN Y, then X LIVES_IN Y (implied)\nIf X PART_OF Y and Y PART_OF Z, then X PART_OF Z (transitive)"
             class="${inputClass} min-h-[120px] resize-y"
+            data-field="inference"
           ></textarea>
           <div class="mt-2 text-xs text-slate-500">Define logic that the LLM should use to infer "hidden" relationships.</div>
         </div>
@@ -110,6 +114,7 @@ const appTemplate = `
             id="globalConstraints"
             placeholder="e.g., A 'Person' can have at most one 'BirthDate'\nA 'Company' must have at least one 'Headquarters'"
             class="${inputClass} min-h-[120px] resize-y"
+            data-field="constraints"
           ></textarea>
         </div>
       </section>
@@ -143,6 +148,15 @@ const createId = (): string => {
   return `id-${Date.now()}-${idCounter}`
 }
 
+let state: FormDataModel = {
+  domain: '',
+  goal: '',
+  entities: [],
+  relationships: [],
+  inference: '',
+  constraints: '',
+}
+
 const showNotification = (message: string): void => {
   const nav = document.getElementById('notification')
   if (!nav) return
@@ -153,18 +167,39 @@ const showNotification = (message: string): void => {
   }, 3000)
 }
 
-const createPropertyRow = (data?: Partial<PropertyDef>): HTMLDivElement => {
-  const propId = createId()
+const createEmptyProperty = (): PropertyDef => ({
+  id: createId(),
+  name: '',
+  type: 'string',
+  constraint: 'optional',
+})
+
+const createEmptyEntity = (): EntityDef => ({
+  id: createId(),
+  name: '',
+  parent: '',
+  desc: '',
+  properties: [createEmptyProperty()],
+})
+
+const createEmptyRelationship = (): RelationshipDef => ({
+  id: createId(),
+  name: '',
+  source: '',
+  target: '',
+  props: '',
+})
+
+const createPropertyRow = (data: PropertyDef): HTMLDivElement => {
   const row = document.createElement('div')
-  row.className =
-    'sub-item grid gap-3 md:grid-cols-[2fr_1.5fr_1.5fr_auto] md:items-end'
-  row.dataset.propId = propId
+  row.className = 'sub-item grid gap-3 md:grid-cols-[2fr_1.5fr_1.5fr_auto] md:items-end'
+  row.dataset.propId = data.id
   row.innerHTML = `
     <div>
-      <input type="text" class="prop-name ${inputClass}" placeholder="Prop Name (e.g., age)" />
+      <input type="text" class="prop-name ${inputClass}" placeholder="Prop Name (e.g., age)" value="${data.name}" data-field="prop-name" />
     </div>
     <div>
-      <select class="prop-type ${inputClass}">
+      <select class="prop-type ${inputClass}" data-field="prop-type">
         <option value="string">String</option>
         <option value="number">Number</option>
         <option value="date">Date</option>
@@ -172,7 +207,7 @@ const createPropertyRow = (data?: Partial<PropertyDef>): HTMLDivElement => {
       </select>
     </div>
     <div>
-      <select class="prop-constraint ${inputClass}">
+      <select class="prop-constraint ${inputClass}" data-field="prop-constraint">
         <option value="optional">Optional</option>
         <option value="required">Required</option>
         <option value="unique">Unique</option>
@@ -181,95 +216,100 @@ const createPropertyRow = (data?: Partial<PropertyDef>): HTMLDivElement => {
     <button type="button" class="${buttonRemove}" data-action="remove-property">×</button>
   `
 
-  if (data?.name) row.querySelector<HTMLInputElement>('.prop-name')!.value = data.name
-  if (data?.type) row.querySelector<HTMLSelectElement>('.prop-type')!.value = data.type
-  if (data?.constraint)
-    row.querySelector<HTMLSelectElement>('.prop-constraint')!.value = data.constraint
+  row.querySelector<HTMLSelectElement>('.prop-type')!.value = data.type
+  row.querySelector<HTMLSelectElement>('.prop-constraint')!.value = data.constraint
 
   return row
 }
 
-const createEntityItem = (data?: Partial<EntityDef>): HTMLDivElement => {
-  const entityId = createId()
+const createEntityItem = (data: EntityDef): HTMLDivElement => {
   const div = document.createElement('div')
   div.className =
     'dynamic-item entity-item relative mb-5 rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:border-primary'
-  div.dataset.entityId = entityId
+  div.dataset.entityId = data.id
   div.innerHTML = `
-    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-item">Remove</button>
+    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-entity">Remove</button>
     <div class="grid gap-5 md:grid-cols-2">
       <div>
         <label class="${labelClass}">Class Name</label>
-        <input type="text" class="entity-name ${inputClass}" placeholder="e.g., Professor" />
+        <input type="text" class="entity-name ${inputClass}" placeholder="e.g., Professor" value="${data.name}" data-field="entity-name" />
+        <div class="mt-2 hidden text-xs text-red-600" data-error="entity-name"></div>
       </div>
       <div>
         <label class="${labelClass}">Parent Class (Optional)</label>
-        <input type="text" class="entity-parent ${inputClass}" placeholder="e.g., Person" />
+        <input type="text" class="entity-parent ${inputClass}" placeholder="e.g., Person" value="${data.parent}" data-field="entity-parent" />
       </div>
     </div>
     <div class="mt-5">
       <label class="${labelClass}">Description</label>
-      <textarea class="entity-desc ${inputClass} min-h-[80px] resize-y" rows="2" placeholder="What does this class represent?"></textarea>
+      <textarea class="entity-desc ${inputClass} min-h-[80px] resize-y" rows="2" placeholder="What does this class represent?" data-field="entity-desc">${data.desc}</textarea>
     </div>
     <div class="mt-5">
       <label class="${labelClass}">Properties (Attributes)</label>
-      <div class="sub-item-list mt-3 border-l-2 border-slate-200 pl-4" data-entity-id="${entityId}"></div>
-      <button type="button" class="${buttonOutline} mt-3 px-3 py-2 text-xs" data-action="add-property" data-entity-id="${entityId}">
+      <div class="sub-item-list mt-3 border-l-2 border-slate-200 pl-4" data-entity-id="${data.id}"></div>
+      <button type="button" class="${buttonOutline} mt-3 px-3 py-2 text-xs" data-action="add-property" data-entity-id="${data.id}">
         + Add Property
       </button>
     </div>
   `
 
-  if (data?.name) div.querySelector<HTMLInputElement>('.entity-name')!.value = data.name
-  if (data?.parent) div.querySelector<HTMLInputElement>('.entity-parent')!.value = data.parent
-  if (data?.desc) div.querySelector<HTMLTextAreaElement>('.entity-desc')!.value = data.desc
-
   const propList = div.querySelector<HTMLDivElement>('.sub-item-list')
-  if (!propList) return div
-
-  if (data?.properties?.length) {
+  if (propList) {
     data.properties.forEach((prop) => propList.appendChild(createPropertyRow(prop)))
-  } else {
-    propList.appendChild(createPropertyRow())
   }
 
   return div
 }
 
-const createRelationshipItem = (data?: Partial<RelationshipDef>): HTMLDivElement => {
-  const relId = createId()
+const createRelationshipItem = (data: RelationshipDef): HTMLDivElement => {
   const div = document.createElement('div')
   div.className =
     'dynamic-item relationship-item relative mb-5 rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:border-primary'
-  div.dataset.relationshipId = relId
+  div.dataset.relationshipId = data.id
   div.innerHTML = `
-    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-item">Remove</button>
+    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-relationship">Remove</button>
     <div>
       <label class="${labelClass}">Predicate Name (Relationship)</label>
-      <input type="text" class="rel-name ${inputClass}" placeholder="e.g., GRADUATED_FROM" />
+      <input type="text" class="rel-name ${inputClass}" placeholder="e.g., GRADUATED_FROM" value="${data.name}" data-field="rel-name" />
+      <div class="mt-2 hidden text-xs text-red-600" data-error="rel-name"></div>
     </div>
     <div class="mt-5 grid gap-5 md:grid-cols-2">
       <div>
         <label class="${labelClass}">Source Class</label>
-        <input type="text" class="rel-source ${inputClass}" placeholder="e.g., Person" />
+        <input type="text" class="rel-source ${inputClass}" placeholder="e.g., Person" value="${data.source}" data-field="rel-source" />
+        <div class="mt-2 hidden text-xs text-red-600" data-error="rel-source"></div>
       </div>
       <div>
         <label class="${labelClass}">Target Class</label>
-        <input type="text" class="rel-target ${inputClass}" placeholder="e.g., University" />
+        <input type="text" class="rel-target ${inputClass}" placeholder="e.g., University" value="${data.target}" data-field="rel-target" />
+        <div class="mt-2 hidden text-xs text-red-600" data-error="rel-target"></div>
       </div>
     </div>
     <div class="mt-5">
       <label class="${labelClass}">Properties for this Edge</label>
-      <input type="text" class="rel-props ${inputClass}" placeholder="e.g., year, degree_type (comma separated)" />
+      <input type="text" class="rel-props ${inputClass}" placeholder="e.g., year, degree_type (comma separated)" value="${data.props}" data-field="rel-props" />
     </div>
   `
 
-  if (data?.name) div.querySelector<HTMLInputElement>('.rel-name')!.value = data.name
-  if (data?.source) div.querySelector<HTMLInputElement>('.rel-source')!.value = data.source
-  if (data?.target) div.querySelector<HTMLInputElement>('.rel-target')!.value = data.target
-  if (data?.props) div.querySelector<HTMLInputElement>('.rel-props')!.value = data.props
-
   return div
+}
+
+const renderEntities = (): void => {
+  const list = document.getElementById('entitiesList')
+  if (!list) return
+  list.innerHTML = ''
+  state.entities.forEach((entity) => list.appendChild(createEntityItem(entity)))
+}
+
+const renderRelationships = (): void => {
+  const list = document.getElementById('relationshipsList')
+  if (!list) return
+  list.innerHTML = ''
+  state.relationships.forEach((rel) => list.appendChild(createRelationshipItem(rel)))
+}
+
+const syncStateFromDOM = (): void => {
+  state = collectFormData()
 }
 
 const collectFormData = (): FormDataModel => {
@@ -281,10 +321,11 @@ const collectFormData = (): FormDataModel => {
   const entities: EntityDef[] = Array.from(
     document.querySelectorAll<HTMLDivElement>('#entitiesList .entity-item')
   ).map((item) => {
+    const entityId = item.dataset.entityId || createId()
     const properties = Array.from(item.querySelectorAll<HTMLDivElement>('.sub-item')).map((p) => ({
       id: p.dataset.propId || createId(),
-      name: (p.querySelector<HTMLInputElement>('.prop-name')?.value ?? ''),
-      type: (p.querySelector<HTMLSelectElement>('.prop-type')?.value ?? 'string'),
+      name: p.querySelector<HTMLInputElement>('.prop-name')?.value ?? '',
+      type: p.querySelector<HTMLSelectElement>('.prop-type')?.value ?? 'string',
       constraint: (p.querySelector<HTMLSelectElement>('.prop-constraint')?.value ?? 'optional') as
         | 'optional'
         | 'required'
@@ -292,7 +333,7 @@ const collectFormData = (): FormDataModel => {
     }))
 
     return {
-      id: item.dataset.entityId || createId(),
+      id: entityId,
       name: item.querySelector<HTMLInputElement>('.entity-name')?.value ?? '',
       parent: item.querySelector<HTMLInputElement>('.entity-parent')?.value ?? '',
       desc: item.querySelector<HTMLTextAreaElement>('.entity-desc')?.value ?? '',
@@ -321,52 +362,223 @@ const collectFormData = (): FormDataModel => {
 }
 
 const setDefaults = (): void => {
-  const entitiesList = document.getElementById('entitiesList')
-  const relationshipsList = document.getElementById('relationshipsList')
-  if (!entitiesList || !relationshipsList) return
+  state = {
+    domain: DEFAULT_DATA.domain,
+    goal: DEFAULT_DATA.goal,
+    entities: DEFAULT_DATA.entities.map((entity) => ({
+      id: createId(),
+      name: entity.name,
+      parent: entity.parent,
+      desc: entity.desc,
+      properties: entity.properties.map((prop) => ({
+        id: createId(),
+        name: prop.name,
+        type: prop.type,
+        constraint: prop.constraint,
+      })),
+    })),
+    relationships: DEFAULT_DATA.relationships.map((rel) => ({
+      id: createId(),
+      name: rel.name,
+      source: rel.source,
+      target: rel.target,
+      props: rel.props,
+    })),
+    inference: DEFAULT_DATA.inference,
+    constraints: DEFAULT_DATA.constraints,
+  }
 
-  entitiesList.innerHTML = ''
-  relationshipsList.innerHTML = ''
-
-  ;(document.getElementById('domainName') as HTMLInputElement).value = DEFAULT_DATA.domain
-  ;(document.getElementById('primaryGoal') as HTMLTextAreaElement).value = DEFAULT_DATA.goal
-
-  DEFAULT_DATA.entities.forEach((entity) => {
-    const item = createEntityItem(entity)
-    entitiesList.appendChild(item)
-  })
-
-  DEFAULT_DATA.relationships.forEach((rel) => {
-    const item = createRelationshipItem(rel)
-    relationshipsList.appendChild(item)
-  })
-
-  ;(document.getElementById('inferenceRules') as HTMLTextAreaElement).value = DEFAULT_DATA.inference
-  ;(document.getElementById('globalConstraints') as HTMLTextAreaElement).value = DEFAULT_DATA.constraints
+  renderAll()
 
   showNotification('✅ Form populated with default research values!')
 }
 
-const ensureRequiredFields = (): boolean => {
+type ValidationErrors = {
+  domain?: string
+  goal?: string
+  entityNames: Record<string, string>
+  relationshipNames: Record<string, string>
+  relationshipSources: Record<string, string>
+  relationshipTargets: Record<string, string>
+}
+
+const normalizeName = (value: string): string => value.trim().toLowerCase()
+
+const validateState = (data: FormDataModel): ValidationErrors => {
+  const errors: ValidationErrors = {
+    entityNames: {},
+    relationshipNames: {},
+    relationshipSources: {},
+    relationshipTargets: {},
+  }
+
+  if (!data.domain.trim()) errors.domain = 'Domain name is required.'
+  if (!data.goal.trim()) errors.goal = 'Extraction goal is required.'
+
+  const entityNameMap = new Map<string, string>()
+  data.entities.forEach((entity) => {
+    const normalized = normalizeName(entity.name)
+    if (!normalized) {
+      errors.entityNames[entity.id] = 'Class name is required.'
+      return
+    }
+    if (entityNameMap.has(normalized)) {
+      errors.entityNames[entity.id] = 'Class name must be unique.'
+    } else {
+      entityNameMap.set(normalized, entity.id)
+    }
+  })
+
+  const relationshipNameMap = new Map<string, string>()
+  data.relationships.forEach((rel) => {
+    const normalized = normalizeName(rel.name)
+    if (!normalized) {
+      errors.relationshipNames[rel.id] = 'Relationship name is required.'
+    } else if (relationshipNameMap.has(normalized)) {
+      errors.relationshipNames[rel.id] = 'Relationship name must be unique.'
+    } else {
+      relationshipNameMap.set(normalized, rel.id)
+    }
+
+    const sourceName = normalizeName(rel.source)
+    const targetName = normalizeName(rel.target)
+
+    if (!sourceName) {
+      errors.relationshipSources[rel.id] = 'Source class is required.'
+    } else if (!entityNameMap.has(sourceName)) {
+      errors.relationshipSources[rel.id] = 'Source class must match a defined entity.'
+    }
+
+    if (!targetName) {
+      errors.relationshipTargets[rel.id] = 'Target class is required.'
+    } else if (!entityNameMap.has(targetName)) {
+      errors.relationshipTargets[rel.id] = 'Target class must match a defined entity.'
+    }
+  })
+
+  return errors
+}
+
+const clearErrors = (): void => {
+  document.querySelectorAll('[data-error]').forEach((el) => {
+    el.classList.add('hidden')
+    el.textContent = ''
+  })
+  document
+    .querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+      '.border-red-400'
+    )
+    .forEach((el) => {
+      el.classList.remove('border-red-400')
+      el.classList.add('border-slate-200')
+    })
+}
+
+const setError = (field: HTMLElement | null, errorEl: HTMLElement | null, message: string): void => {
+  if (!field || !errorEl) return
+  field.classList.add('border-red-400')
+  field.classList.remove('border-slate-200')
+  errorEl.textContent = message
+  errorEl.classList.remove('hidden')
+}
+
+const applyErrors = (errors: ValidationErrors): boolean => {
+  clearErrors()
+
+  if (errors.domain) {
+    setError(
+      document.getElementById('domainName'),
+      document.querySelector('[data-error="domain"]'),
+      errors.domain
+    )
+  }
+  if (errors.goal) {
+    setError(
+      document.getElementById('primaryGoal'),
+      document.querySelector('[data-error="goal"]'),
+      errors.goal
+    )
+  }
+
+  document.querySelectorAll<HTMLDivElement>('.entity-item').forEach((item) => {
+    const id = item.dataset.entityId
+    if (!id) return
+    const message = errors.entityNames[id]
+    if (!message) return
+    setError(
+      item.querySelector('.entity-name'),
+      item.querySelector('[data-error="entity-name"]'),
+      message
+    )
+  })
+
+  document.querySelectorAll<HTMLDivElement>('.relationship-item').forEach((item) => {
+    const id = item.dataset.relationshipId
+    if (!id) return
+
+    const nameMessage = errors.relationshipNames[id]
+    if (nameMessage) {
+      setError(
+        item.querySelector('.rel-name'),
+        item.querySelector('[data-error="rel-name"]'),
+        nameMessage
+      )
+    }
+
+    const sourceMessage = errors.relationshipSources[id]
+    if (sourceMessage) {
+      setError(
+        item.querySelector('.rel-source'),
+        item.querySelector('[data-error="rel-source"]'),
+        sourceMessage
+      )
+    }
+
+    const targetMessage = errors.relationshipTargets[id]
+    if (targetMessage) {
+      setError(
+        item.querySelector('.rel-target'),
+        item.querySelector('[data-error="rel-target"]'),
+        targetMessage
+      )
+    }
+  })
+
+  const hasErrors =
+    Boolean(errors.domain) ||
+    Boolean(errors.goal) ||
+    Object.keys(errors.entityNames).length > 0 ||
+    Object.keys(errors.relationshipNames).length > 0 ||
+    Object.keys(errors.relationshipSources).length > 0 ||
+    Object.keys(errors.relationshipTargets).length > 0
+
+  return !hasErrors
+}
+
+const renderAll = (): void => {
+  renderEntities()
+  renderRelationships()
+
   const domain = document.getElementById('domainName') as HTMLInputElement
   const goal = document.getElementById('primaryGoal') as HTMLTextAreaElement
-  if (!domain.value.trim()) {
-    domain.focus()
-    showNotification('Please enter a domain name.')
-    return false
-  }
-  if (!goal.value.trim()) {
-    goal.focus()
-    showNotification('Please enter an extraction goal.')
-    return false
-  }
-  return true
+  const inference = document.getElementById('inferenceRules') as HTMLTextAreaElement
+  const constraints = document.getElementById('globalConstraints') as HTMLTextAreaElement
+
+  if (domain) domain.value = state.domain
+  if (goal) goal.value = state.goal
+  if (inference) inference.value = state.inference
+  if (constraints) constraints.value = state.constraints
 }
 
 const generatePrompt = (): void => {
-  if (!ensureRequiredFields()) return
-  const data = collectFormData()
-  const prompt = buildPrompt(data)
+  syncStateFromDOM()
+  const isValid = applyErrors(validateState(state))
+  if (!isValid) {
+    showNotification('Please fix the highlighted errors before generating.')
+    return
+  }
+
+  const prompt = buildPrompt(state)
   const output = document.getElementById('promptOutput')
   const section = document.getElementById('outputSection')
   if (!output || !section) return
@@ -388,6 +600,52 @@ const copyPrompt = async (): Promise<void> => {
   }
 }
 
+const updateStateFromInput = (target: HTMLElement): void => {
+  const input = target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  const field = input.dataset.field
+  if (!field) return
+
+  if (field === 'domain') state.domain = input.value
+  if (field === 'goal') state.goal = input.value
+  if (field === 'inference') state.inference = input.value
+  if (field === 'constraints') state.constraints = input.value
+
+  const entityItem = input.closest<HTMLDivElement>('.entity-item')
+  if (entityItem) {
+    const entityId = entityItem.dataset.entityId
+    if (!entityId) return
+    const entity = state.entities.find((e) => e.id === entityId)
+    if (!entity) return
+
+    if (field === 'entity-name') entity.name = input.value
+    if (field === 'entity-parent') entity.parent = input.value
+    if (field === 'entity-desc') entity.desc = input.value
+
+    const propItem = input.closest<HTMLDivElement>('.sub-item')
+    if (propItem) {
+      const propId = propItem.dataset.propId
+      if (!propId) return
+      const prop = entity.properties.find((p) => p.id === propId)
+      if (!prop) return
+      if (field === 'prop-name') prop.name = input.value
+      if (field === 'prop-type') prop.type = input.value
+      if (field === 'prop-constraint') prop.constraint = input.value as PropertyDef['constraint']
+    }
+  }
+
+  const relItem = input.closest<HTMLDivElement>('.relationship-item')
+  if (relItem) {
+    const relId = relItem.dataset.relationshipId
+    if (!relId) return
+    const rel = state.relationships.find((r) => r.id === relId)
+    if (!rel) return
+    if (field === 'rel-name') rel.name = input.value
+    if (field === 'rel-source') rel.source = input.value
+    if (field === 'rel-target') rel.target = input.value
+    if (field === 'rel-props') rel.props = input.value
+  }
+}
+
 const handleActionClick = (event: MouseEvent): void => {
   const target = event.target as HTMLElement
   const actionButton = target.closest<HTMLButtonElement>('button[data-action]')
@@ -398,33 +656,57 @@ const handleActionClick = (event: MouseEvent): void => {
 
   switch (action) {
     case 'add-entity': {
-      const list = document.getElementById('entitiesList')
-      if (!list) return
-      list.appendChild(createEntityItem())
+      syncStateFromDOM()
+      state.entities = [...state.entities, createEmptyEntity()]
+      renderEntities()
       break
     }
     case 'add-relationship': {
-      const list = document.getElementById('relationshipsList')
-      if (!list) return
-      list.appendChild(createRelationshipItem())
+      syncStateFromDOM()
+      state.relationships = [...state.relationships, createEmptyRelationship()]
+      renderRelationships()
       break
     }
     case 'add-property': {
+      syncStateFromDOM()
       const entityId = actionButton.dataset.entityId
       if (!entityId) return
-      const list = document.querySelector<HTMLDivElement>(`.sub-item-list[data-entity-id="${entityId}"]`)
-      if (!list) return
-      list.appendChild(createPropertyRow())
+      const entity = state.entities.find((e) => e.id === entityId)
+      if (!entity) return
+      entity.properties = [...entity.properties, createEmptyProperty()]
+      renderEntities()
       break
     }
-    case 'remove-item': {
-      const item = actionButton.closest<HTMLElement>('.dynamic-item')
-      if (item) item.remove()
+    case 'remove-entity': {
+      syncStateFromDOM()
+      const item = actionButton.closest<HTMLElement>('.entity-item')
+      const id = item?.dataset.entityId
+      if (!id) return
+      state.entities = state.entities.filter((entity) => entity.id !== id)
+      renderEntities()
+      break
+    }
+    case 'remove-relationship': {
+      syncStateFromDOM()
+      const item = actionButton.closest<HTMLElement>('.relationship-item')
+      const id = item?.dataset.relationshipId
+      if (!id) return
+      state.relationships = state.relationships.filter((rel) => rel.id !== id)
+      renderRelationships()
       break
     }
     case 'remove-property': {
-      const item = actionButton.closest<HTMLElement>('.sub-item')
-      if (item) item.remove()
+      syncStateFromDOM()
+      const prop = actionButton.closest<HTMLElement>('.sub-item')
+      const entityItem = actionButton.closest<HTMLElement>('.entity-item')
+      const entityId = entityItem?.dataset.entityId
+      const propId = prop?.dataset.propId
+      if (!entityId || !propId) return
+      const entity = state.entities.find((e) => e.id === entityId)
+      if (!entity) return
+      entity.properties = entity.properties.filter((p) => p.id !== propId)
+      if (entity.properties.length === 0) entity.properties = [createEmptyProperty()]
+      renderEntities()
       break
     }
     case 'use-defaults': {
@@ -444,16 +726,27 @@ const handleActionClick = (event: MouseEvent): void => {
   }
 }
 
+const handleInputChange = (event: Event): void => {
+  const target = event.target as HTMLElement
+  if (!target || !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) return
+  updateStateFromInput(target)
+}
+
 export const initApp = (): void => {
   if (!appRoot) return
   appRoot.innerHTML = appTemplate
 
-  const entitiesList = document.getElementById('entitiesList')
-  const relationshipsList = document.getElementById('relationshipsList')
-  if (!entitiesList || !relationshipsList) return
+  state = {
+    domain: '',
+    goal: '',
+    entities: [createEmptyEntity()],
+    relationships: [createEmptyRelationship()],
+    inference: '',
+    constraints: '',
+  }
 
-  entitiesList.appendChild(createEntityItem())
-  relationshipsList.appendChild(createRelationshipItem())
+  renderAll()
 
   document.addEventListener('click', handleActionClick)
+  document.addEventListener('input', handleInputChange)
 }
