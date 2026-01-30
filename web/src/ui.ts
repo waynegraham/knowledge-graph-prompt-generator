@@ -27,6 +27,22 @@ const buttonPrimary = `${buttonBase} bg-gradient-to-br from-primary to-secondary
 const buttonRemove = 'rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold text-red-800 hover:bg-red-200'
 const buttonGhost = `${buttonBase} border border-slate-200 text-slate-600 hover:border-primary hover:text-primary`
 
+export const ACTIONS = {
+  addEntity: 'add-entity',
+  addRelationship: 'add-relationship',
+  addProperty: 'add-property',
+  removeEntity: 'remove-entity',
+  removeRelationship: 'remove-relationship',
+  removeProperty: 'remove-property',
+  useDefaults: 'use-defaults',
+  exportJson: 'export-json',
+  importJson: 'import-json',
+  generate: 'generate',
+  copy: 'copy',
+} as const
+
+export type ActionName = (typeof ACTIONS)[keyof typeof ACTIONS]
+
 const appTemplate = `
   <div id="notification" class="hidden fixed right-8 top-8 z-50 rounded-xl bg-emerald-600 px-8 py-4 text-white shadow-lg" role="status" aria-live="polite"></div>
   <div class="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white/95 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.3)] backdrop-blur">
@@ -72,7 +88,7 @@ const appTemplate = `
         </p>
         <p class="mb-5 text-xs text-slate-500">Example: “Surgeon” → parent “Doctor”; properties: specialty (required).</p>
         <div id="entitiesList" class="dynamic-list mt-4"></div>
-        <button type="button" class="${buttonOutline}" data-action="add-entity">+ Add Entity Class</button>
+        <button type="button" class="${buttonOutline}" data-action="${ACTIONS.addEntity}">+ Add Entity Class</button>
       </section>
 
       <section class="mb-10 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -83,7 +99,7 @@ const appTemplate = `
         <p class="mb-2 text-xs text-slate-500">Example: PRESCRIBES (Doctor → Drug) with props: dosage, frequency.</p>
         <p class="mb-4 text-xs text-slate-500">Source/Target must match class names (case-insensitive).</p>
         <div id="relationshipsList" class="dynamic-list mt-4"></div>
-        <button type="button" class="${buttonOutline}" data-action="add-relationship">+ Add Relationship Type</button>
+        <button type="button" class="${buttonOutline}" data-action="${ACTIONS.addRelationship}">+ Add Relationship Type</button>
       </section>
 
       <section class="mb-10 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -115,18 +131,18 @@ const appTemplate = `
 
       <div class="flex flex-col items-center justify-center gap-4 pb-4 md:flex-row md:flex-wrap">
         <div class="flex flex-col items-center gap-1">
-          <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="use-defaults">
+          <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="${ACTIONS.useDefaults}">
             📝 Use Default Values
           </button>
           <span class="text-xs text-slate-500">Overwrites current form.</span>
         </div>
-        <button type="button" class="${buttonPrimary} px-12 py-4 text-base md:text-lg disabled:cursor-not-allowed disabled:opacity-50" data-action="generate" data-generate>
+        <button type="button" class="${buttonPrimary} px-12 py-4 text-base md:text-lg disabled:cursor-not-allowed disabled:opacity-50" data-action="${ACTIONS.generate}" data-generate>
           ✨ Generate Professional Prompt
         </button>
-        <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="export-json">
+        <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="${ACTIONS.exportJson}">
           ⤓ Export config JSON
         </button>
-        <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="import-json">
+        <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="${ACTIONS.importJson}">
           ⇪ Import config JSON
         </button>
         <input type="file" id="jsonImport" accept="application/json" class="hidden" />
@@ -137,7 +153,7 @@ const appTemplate = `
     <section id="outputSection" class="hidden rounded-2xl bg-slate-900 p-10" aria-live="polite">
       <div class="mb-6 flex flex-col gap-4 text-white md:flex-row md:items-center md:justify-between">
         <h2 class="text-2xl font-semibold">🚀 Optimized System Prompt</h2>
-        <button class="${buttonOutline} border-white text-white hover:border-white/70 hover:text-white/80" data-action="copy">📋 Copy to Clipboard</button>
+        <button class="${buttonOutline} border-white text-white hover:border-white/70 hover:text-white/80" data-action="${ACTIONS.copy}">📋 Copy to Clipboard</button>
       </div>
       <p class="mb-4 text-xs text-slate-300">Model must output only JSON, no prose.</p>
       <div id="promptOutput" class="max-h-[700px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-6 font-mono text-sm leading-relaxed text-slate-100"></div>
@@ -179,7 +195,7 @@ const createPropertyRow = (data: PropertyDef): HTMLDivElement => {
         <option value="unique">Unique</option>
       </select>
     </div>
-    <button type="button" class="${buttonRemove}" data-action="remove-property">×</button>
+    <button type="button" class="${buttonRemove}" data-action="${ACTIONS.removeProperty}">×</button>
   `
 
   row.querySelector<HTMLSelectElement>('.prop-type')!.value = data.type
@@ -194,7 +210,7 @@ const createEntityItem = (data: EntityDef): HTMLDivElement => {
     'dynamic-item entity-item relative mb-5 rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:border-primary'
   div.dataset.entityId = data.id
   div.innerHTML = `
-    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-entity">Remove</button>
+    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="${ACTIONS.removeEntity}">Remove</button>
     <div class="grid gap-5 md:grid-cols-2">
       <div>
         <label class="${labelClass}">Class Name</label>
@@ -213,7 +229,7 @@ const createEntityItem = (data: EntityDef): HTMLDivElement => {
     <div class="mt-5">
       <label class="${labelClass}">Properties (Attributes)</label>
       <div class="sub-item-list mt-3 border-l-2 border-slate-200 pl-4" data-entity-id="${data.id}"></div>
-      <button type="button" class="${buttonOutline} mt-3 px-3 py-2 text-xs" data-action="add-property" data-entity-id="${data.id}">
+      <button type="button" class="${buttonOutline} mt-3 px-3 py-2 text-xs" data-action="${ACTIONS.addProperty}" data-entity-id="${data.id}">
         + Add Property
       </button>
     </div>
@@ -233,7 +249,7 @@ const createRelationshipItem = (data: RelationshipDef): HTMLDivElement => {
     'dynamic-item relationship-item relative mb-5 rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:border-primary'
   div.dataset.relationshipId = data.id
   div.innerHTML = `
-    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-relationship">Remove</button>
+    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="${ACTIONS.removeRelationship}">Remove</button>
     <div>
       <label class="${labelClass}">Predicate Name (Relationship)</label>
       <input type="text" class="rel-name ${inputClass}" placeholder="GRADUATED_FROM" value="${data.name}" data-field="rel-name" />
@@ -429,11 +445,11 @@ const handleActionClick = (event: MouseEvent): void => {
   const actionButton = target.closest<HTMLButtonElement>('button[data-action]')
   if (!actionButton) return
 
-  const action = actionButton.dataset.action
+  const action = actionButton.dataset.action as ActionName | undefined
   if (!action) return
 
   switch (action) {
-    case 'add-entity': {
+    case ACTIONS.addEntity: {
       syncStateFromDOM()
       const data = getState()
       data.entities = [...data.entities, createEmptyEntity()]
@@ -443,7 +459,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'add-relationship': {
+    case ACTIONS.addRelationship: {
       syncStateFromDOM()
       const data = getState()
       data.relationships = [...data.relationships, createEmptyRelationship()]
@@ -453,7 +469,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'add-property': {
+    case ACTIONS.addProperty: {
       syncStateFromDOM()
       const entityId = actionButton.dataset.entityId
       if (!entityId) return
@@ -467,7 +483,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'remove-entity': {
+    case ACTIONS.removeEntity: {
       syncStateFromDOM()
       const item = actionButton.closest<HTMLElement>('.entity-item')
       const id = item?.dataset.entityId
@@ -480,7 +496,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'remove-relationship': {
+    case ACTIONS.removeRelationship: {
       syncStateFromDOM()
       const item = actionButton.closest<HTMLElement>('.relationship-item')
       const id = item?.dataset.relationshipId
@@ -493,7 +509,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'remove-property': {
+    case ACTIONS.removeProperty: {
       syncStateFromDOM()
       const prop = actionButton.closest<HTMLElement>('.sub-item')
       const entityItem = actionButton.closest<HTMLElement>('.entity-item')
@@ -511,7 +527,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'use-defaults': {
+    case ACTIONS.useDefaults: {
       const data = buildDefaultState()
       setState(data)
       renderAll()
@@ -520,7 +536,7 @@ const handleActionClick = (event: MouseEvent): void => {
       scheduleSave(data)
       break
     }
-    case 'export-json': {
+    case ACTIONS.exportJson: {
       syncStateFromDOM()
       const data = getState()
       const payload = JSON.stringify({ ...data, schemaVersion: SCHEMA_VERSION }, null, 2)
@@ -536,16 +552,16 @@ const handleActionClick = (event: MouseEvent): void => {
       showNotification('Exported configuration JSON.')
       break
     }
-    case 'import-json': {
+    case ACTIONS.importJson: {
       const input = byId<HTMLInputElement>('jsonImport')
       input.click()
       break
     }
-    case 'generate': {
+    case ACTIONS.generate: {
       generatePrompt()
       break
     }
-    case 'copy': {
+    case ACTIONS.copy: {
       void copyPrompt()
       break
     }
