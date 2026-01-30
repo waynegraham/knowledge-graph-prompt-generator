@@ -55,9 +55,10 @@ const appTemplate = `
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">1</span>
           Domain & Objectives
         </div>
+        <p class="mb-5 text-xs text-slate-500">Example: “Financial Audit — extract audit findings, parties, and outcomes.”</p>
         <div class="mb-5">
           <label for="domainName" class="${labelClass}">Domain Name *</label>
-          <input type="text" id="domainName" required placeholder="e.g., Financial Audit, Medical Research" class="${inputClass}" data-field="domain" />
+          <input type="text" id="domainName" required placeholder="Financial Audit" class="${inputClass}" data-field="domain" />
           <div class="mt-2 hidden text-xs text-red-600" data-error="domain"></div>
         </div>
         <div>
@@ -65,7 +66,7 @@ const appTemplate = `
           <textarea
             id="primaryGoal"
             required
-            placeholder="e.g., Build a treatment-disease mapping with clinical outcome metrics..."
+            placeholder="Extract audit findings, parties, and outcomes."
             class="${inputClass} min-h-[120px] resize-y"
             data-field="goal"
           ></textarea>
@@ -80,9 +81,10 @@ const appTemplate = `
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">2</span>
           Class Hierarchy (Entity Types)
         </div>
-        <p class="mb-5 text-sm text-slate-500">
-          Define your entities. Use <strong>Parent Class</strong> to create hierarchies (e.g., a "Surgeon" is a type of "Doctor").
+        <p class="mb-2 text-sm text-slate-500">
+          Define your entities. Use <strong>Parent Class</strong> to create hierarchies.
         </p>
+        <p class="mb-5 text-xs text-slate-500">Example: “Surgeon” → parent “Doctor”; properties: specialty (required).</p>
         <div id="entitiesList" class="dynamic-list mt-4"></div>
         <button type="button" class="${buttonOutline}" data-action="add-entity">+ Add Entity Class</button>
       </section>
@@ -92,6 +94,8 @@ const appTemplate = `
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">3</span>
           Relationship Predicates
         </div>
+        <p class="mb-2 text-xs text-slate-500">Example: PRESCRIBES (Doctor → Drug) with props: dosage, frequency.</p>
+        <p class="mb-4 text-xs text-slate-500">Source/Target must match class names (case-insensitive).</p>
         <div id="relationshipsList" class="dynamic-list mt-4"></div>
         <button type="button" class="${buttonOutline}" data-action="add-relationship">+ Add Relationship Type</button>
       </section>
@@ -101,11 +105,12 @@ const appTemplate = `
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">4</span>
           Global Ontology Rules
         </div>
+        <p class="mb-5 text-xs text-slate-500">Example: “If X PART_OF Y and Y PART_OF Z, then X PART_OF Z.”</p>
         <div class="mb-5">
           <label for="inferenceRules" class="${labelClass}">Inference Rules (One per line)</label>
           <textarea
             id="inferenceRules"
-            placeholder="e.g., If X is BORN_IN Y, then X LIVES_IN Y (implied)\nIf X PART_OF Y and Y PART_OF Z, then X PART_OF Z (transitive)"
+            placeholder="If X PART_OF Y and Y PART_OF Z, then X PART_OF Z."
             class="${inputClass} min-h-[120px] resize-y"
             data-field="inference"
           ></textarea>
@@ -115,28 +120,32 @@ const appTemplate = `
           <label for="globalConstraints" class="${labelClass}">Global Constraints</label>
           <textarea
             id="globalConstraints"
-            placeholder="e.g., A 'Person' can have at most one 'BirthDate'\nA 'Company' must have at least one 'Headquarters'"
+            placeholder="A Company must have at least one Headquarters."
             class="${inputClass} min-h-[120px] resize-y"
             data-field="constraints"
           ></textarea>
         </div>
       </section>
 
-      <div class="flex flex-col items-center justify-center gap-4 pb-10 md:flex-row md:flex-wrap">
-        <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="use-defaults">
+      <div class="flex flex-col items-center justify-center gap-4 pb-4 md:flex-row md:flex-wrap">
+        <div class="flex flex-col items-center gap-1">
+          <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="use-defaults">
           📝 Use Default Values
-        </button>
+          </button>
+          <span class="text-xs text-slate-500">Overwrites current form.</span>
+        </div>
         <button type="button" class="${buttonPrimary} px-12 py-4 text-base md:text-lg disabled:cursor-not-allowed disabled:opacity-50" data-action="generate" data-generate>
           ✨ Generate Professional Prompt
         </button>
         <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="export-json">
-          ⤓ Export JSON
+          ⤓ Export config JSON
         </button>
         <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="import-json">
-          ⇪ Import JSON
+          ⇪ Import config JSON
         </button>
         <input type="file" id="jsonImport" accept="application/json" class="hidden" />
       </div>
+      <p class="pb-10 text-center text-xs text-slate-500">Output is deterministic and sorted alphabetically.</p>
     </form>
 
     <section id="outputSection" class="hidden rounded-2xl bg-slate-900 p-10" aria-live="polite">
@@ -144,6 +153,7 @@ const appTemplate = `
         <h2 class="text-2xl font-semibold">🚀 Optimized System Prompt</h2>
         <button class="${buttonOutline} border-white text-white hover:border-white/70 hover:text-white/80" data-action="copy">📋 Copy to Clipboard</button>
       </div>
+      <p class="mb-4 text-xs text-slate-300">Model must output only JSON, no prose.</p>
       <div id="promptOutput" class="max-h-[700px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-6 font-mono text-sm leading-relaxed text-slate-100"></div>
     </section>
   </div>
@@ -274,7 +284,7 @@ const createPropertyRow = (data: PropertyDef): HTMLDivElement => {
   row.dataset.propId = data.id
   row.innerHTML = `
     <div>
-      <input type="text" class="prop-name ${inputClass}" placeholder="Prop Name (e.g., age)" value="${data.name}" data-field="prop-name" />
+      <input type="text" class="prop-name ${inputClass}" placeholder="age" value="${data.name}" data-field="prop-name" />
     </div>
     <div>
       <select class="prop-type ${inputClass}" data-field="prop-type">
@@ -310,17 +320,17 @@ const createEntityItem = (data: EntityDef): HTMLDivElement => {
     <div class="grid gap-5 md:grid-cols-2">
       <div>
         <label class="${labelClass}">Class Name</label>
-        <input type="text" class="entity-name ${inputClass}" placeholder="e.g., Professor" value="${data.name}" data-field="entity-name" />
+        <input type="text" class="entity-name ${inputClass}" placeholder="Professor" value="${data.name}" data-field="entity-name" />
         <div class="mt-2 hidden text-xs text-red-600" data-error="entity-name"></div>
       </div>
       <div>
         <label class="${labelClass}">Parent Class (Optional)</label>
-        <input type="text" class="entity-parent ${inputClass}" placeholder="e.g., Person" value="${data.parent}" data-field="entity-parent" />
+        <input type="text" class="entity-parent ${inputClass}" placeholder="Person" value="${data.parent}" data-field="entity-parent" />
       </div>
     </div>
     <div class="mt-5">
       <label class="${labelClass}">Description</label>
-      <textarea class="entity-desc ${inputClass} min-h-[80px] resize-y" rows="2" placeholder="What does this class represent?" data-field="entity-desc">${data.desc}</textarea>
+      <textarea class="entity-desc ${inputClass} min-h-[80px] resize-y" rows="2" placeholder="Teaches or advises students." data-field="entity-desc">${data.desc}</textarea>
     </div>
     <div class="mt-5">
       <label class="${labelClass}">Properties (Attributes)</label>
@@ -348,24 +358,24 @@ const createRelationshipItem = (data: RelationshipDef): HTMLDivElement => {
     <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="remove-relationship">Remove</button>
     <div>
       <label class="${labelClass}">Predicate Name (Relationship)</label>
-      <input type="text" class="rel-name ${inputClass}" placeholder="e.g., GRADUATED_FROM" value="${data.name}" data-field="rel-name" />
+      <input type="text" class="rel-name ${inputClass}" placeholder="GRADUATED_FROM" value="${data.name}" data-field="rel-name" />
       <div class="mt-2 hidden text-xs text-red-600" data-error="rel-name"></div>
     </div>
     <div class="mt-5 grid gap-5 md:grid-cols-2">
       <div>
         <label class="${labelClass}">Source Class</label>
-        <input type="text" class="rel-source ${inputClass}" placeholder="e.g., Person" value="${data.source}" data-field="rel-source" />
+        <input type="text" class="rel-source ${inputClass}" placeholder="Person" value="${data.source}" data-field="rel-source" />
         <div class="mt-2 hidden text-xs text-red-600" data-error="rel-source"></div>
       </div>
       <div>
         <label class="${labelClass}">Target Class</label>
-        <input type="text" class="rel-target ${inputClass}" placeholder="e.g., University" value="${data.target}" data-field="rel-target" />
+        <input type="text" class="rel-target ${inputClass}" placeholder="University" value="${data.target}" data-field="rel-target" />
         <div class="mt-2 hidden text-xs text-red-600" data-error="rel-target"></div>
       </div>
     </div>
     <div class="mt-5">
       <label class="${labelClass}">Properties for this Edge</label>
-      <input type="text" class="rel-props ${inputClass}" placeholder="e.g., year, degree_type (comma separated)" value="${data.props}" data-field="rel-props" />
+      <input type="text" class="rel-props ${inputClass}" placeholder="year, degree_type" value="${data.props}" data-field="rel-props" />
     </div>
   `
 
@@ -568,11 +578,16 @@ const updateSummary = (messages: string[]): void => {
   if (!summary) return
   if (messages.length === 0) {
     summary.classList.add('hidden')
-    summary.textContent = ''
+    summary.innerHTML = ''
     return
   }
   summary.classList.remove('hidden')
-  summary.textContent = `Please fix the following issues: ${messages.join(' ')}`
+  summary.innerHTML = `
+    <div class="font-semibold">Fix these issues:</div>
+    <ul class="mt-2 list-disc space-y-1 pl-5">
+      ${messages.map((message) => `<li>${message}</li>`).join('')}
+    </ul>
+  `
 }
 
 const applyErrors = (errors: ValidationErrors): boolean => {
@@ -638,19 +653,49 @@ const applyErrors = (errors: ValidationErrors): boolean => {
   })
 
   const summaryMessages: string[] = []
-  if (errors.domain) summaryMessages.push(errors.domain)
-  if (errors.goal) summaryMessages.push(errors.goal)
+  if (errors.domain) summaryMessages.push('Missing domain name.')
+  if (errors.goal) summaryMessages.push('Missing extraction goal.')
   if (Object.keys(errors.entityNames).length > 0) {
-    summaryMessages.push('One or more entity names are missing or duplicated.')
+    const duplicates = new Set<string>()
+    const counts = new Map<string, number>()
+    state.entities.forEach((entity) => {
+      const name = normalizeName(entity.name)
+      if (!name) return
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    })
+    counts.forEach((count, name) => {
+      if (count > 1) duplicates.add(name)
+    })
+    if (duplicates.size > 0) {
+      summaryMessages.push(`Duplicate entity names: ${[...duplicates].join(', ')}`)
+    }
+    if (Object.keys(errors.entityNames).some((id) => !state.entities.find((e) => e.id === id)?.name.trim())) {
+      summaryMessages.push('Missing entity names.')
+    }
   }
   if (Object.keys(errors.relationshipNames).length > 0) {
-    summaryMessages.push('One or more relationship names are missing or duplicated.')
+    const duplicates = new Set<string>()
+    const counts = new Map<string, number>()
+    state.relationships.forEach((rel) => {
+      const name = normalizeName(rel.name)
+      if (!name) return
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    })
+    counts.forEach((count, name) => {
+      if (count > 1) duplicates.add(name)
+    })
+    if (duplicates.size > 0) {
+      summaryMessages.push(`Duplicate relationship names: ${[...duplicates].join(', ')}`)
+    }
+    if (Object.keys(errors.relationshipNames).some((id) => !state.relationships.find((r) => r.id === id)?.name.trim())) {
+      summaryMessages.push('Missing relationship names.')
+    }
   }
-  if (
-    Object.keys(errors.relationshipSources).length > 0 ||
-    Object.keys(errors.relationshipTargets).length > 0
-  ) {
-    summaryMessages.push('One or more relationships reference undefined classes.')
+  if (Object.keys(errors.relationshipSources).length > 0) {
+    summaryMessages.push('Missing or invalid relationship source classes.')
+  }
+  if (Object.keys(errors.relationshipTargets).length > 0) {
+    summaryMessages.push('Missing or invalid relationship target classes.')
   }
   updateSummary(summaryMessages)
 
