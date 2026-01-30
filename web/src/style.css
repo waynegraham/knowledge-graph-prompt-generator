@@ -20,7 +20,8 @@
   body {
     min-height: 100vh;
     padding: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Keep app background in sync with theme tokens so palette previews are accurate. */
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);

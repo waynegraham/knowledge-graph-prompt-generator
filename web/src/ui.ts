@@ -50,7 +50,7 @@ const appTemplate = `
   <div id="notification" class="hidden fixed right-8 top-8 z-50 rounded-xl bg-emerald-600 px-8 py-4 text-white shadow-lg" role="status" aria-live="polite"></div>
   <div class="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white/95 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.3)] backdrop-blur">
     <header class="bg-gradient-to-br from-primary to-secondary px-10 py-14 text-center text-white">
-      <h1 class="text-3xl font-extrabold tracking-tight md:text-4xl">🧠 Advanced KG Prompt Generator</h1>
+      <h1 class="text-3xl font-extrabold tracking-tight md:text-4xl">🧠 Advanced Knowledge Graph Prompt Generator</h1>
       <p class="mt-3 text-lg/relaxed text-white/90">Design multi-layered Ontologies and generate high-precision Extraction Prompts</p>
     </header>
 
