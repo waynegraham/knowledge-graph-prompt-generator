@@ -63,8 +63,8 @@ const appTemplate = `
         <p class="mb-5 text-xs text-slate-500">Example: “Financial Audit — extract audit findings, parties, and outcomes.”</p>
         <div class="mb-5">
           <label for="domainName" class="${labelClass}">Domain Name *</label>
-          <input type="text" id="domainName" required placeholder="Financial Audit" class="${inputClass}" data-field="domain" />
-          <div class="mt-2 hidden text-xs text-red-600" data-error="domain"></div>
+          <input type="text" id="domainName" required placeholder="Financial Audit" class="${inputClass}" data-field="domain" aria-describedby="error-domain" />
+          <div id="error-domain" class="mt-2 hidden text-xs text-red-600" data-error="domain" role="alert" aria-live="polite"></div>
         </div>
         <div>
           <label for="primaryGoal" class="${labelClass}">Extraction Goal *</label>
@@ -74,12 +74,19 @@ const appTemplate = `
             placeholder="Extract audit findings, parties, and outcomes."
             class="${inputClass} min-h-[120px] resize-y"
             data-field="goal"
+            aria-describedby="error-goal"
           ></textarea>
-          <div class="mt-2 hidden text-xs text-red-600" data-error="goal"></div>
+          <div id="error-goal" class="mt-2 hidden text-xs text-red-600" data-error="goal" role="alert" aria-live="polite"></div>
         </div>
       </section>
 
-      <div id="validationSummary" class="mb-8 hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+      <div
+        id="validationSummary"
+        class="mb-8 hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+        role="alert"
+        aria-live="assertive"
+        tabindex="-1"
+      ></div>
 
       <section class="mb-10 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div class="mb-6 flex items-center gap-4 text-2xl font-bold text-primary">
@@ -198,10 +205,19 @@ const createPropertyRow = (data: PropertyDef): HTMLDivElement => {
   row.dataset.propId = data.id
   row.innerHTML = `
     <div>
-      <input type="text" class="prop-name ${inputClass}" placeholder="age" value="${data.name}" data-field="prop-name" />
+      <label class="sr-only" for="prop-name-${data.id}">Property name</label>
+      <input
+        type="text"
+        id="prop-name-${data.id}"
+        class="prop-name ${inputClass}"
+        placeholder="age"
+        value="${data.name}"
+        data-field="prop-name"
+      />
     </div>
     <div>
-      <select class="prop-type ${inputClass}" data-field="prop-type">
+      <label class="sr-only" for="prop-type-${data.id}">Property type</label>
+      <select id="prop-type-${data.id}" class="prop-type ${inputClass}" data-field="prop-type">
         <option value="string">String</option>
         <option value="number">Number</option>
         <option value="date">Date</option>
@@ -209,13 +225,19 @@ const createPropertyRow = (data: PropertyDef): HTMLDivElement => {
       </select>
     </div>
     <div>
-      <select class="prop-constraint ${inputClass}" data-field="prop-constraint">
+      <label class="sr-only" for="prop-constraint-${data.id}">Property constraint</label>
+      <select id="prop-constraint-${data.id}" class="prop-constraint ${inputClass}" data-field="prop-constraint">
         <option value="optional">Optional</option>
         <option value="required">Required</option>
         <option value="unique">Unique</option>
       </select>
     </div>
-    <button type="button" class="${buttonRemove}" data-action="${ACTIONS.removeProperty}">×</button>
+    <button
+      type="button"
+      class="${buttonRemove}"
+      data-action="${ACTIONS.removeProperty}"
+      aria-label="Remove property"
+    >×</button>
   `
 
   row.querySelector<HTMLSelectElement>('.prop-type')!.value = data.type
@@ -230,24 +252,56 @@ const createEntityItem = (data: EntityDef): HTMLDivElement => {
     'dynamic-item entity-item relative mb-5 rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:border-primary'
   div.dataset.entityId = data.id
   div.innerHTML = `
-    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="${ACTIONS.removeEntity}">Remove</button>
+    <button
+      type="button"
+      class="${buttonRemove} absolute right-4 top-4"
+      data-action="${ACTIONS.removeEntity}"
+      aria-label="Remove entity"
+    >Remove</button>
     <div class="grid gap-5 md:grid-cols-2">
       <div>
-        <label class="${labelClass}">Class Name</label>
-        <input type="text" class="entity-name ${inputClass}" placeholder="Professor" value="${data.name}" data-field="entity-name" />
-        <div class="mt-2 hidden text-xs text-red-600" data-error="entity-name"></div>
-      </div>
-      <div>
-        <label class="${labelClass}">Parent Class (Optional)</label>
-        <input type="text" class="entity-parent ${inputClass}" placeholder="Person" value="${data.parent}" data-field="entity-parent" />
-      </div>
+      <label class="${labelClass}" for="entity-name-${data.id}">Class Name</label>
+      <input
+        type="text"
+        id="entity-name-${data.id}"
+        class="entity-name ${inputClass}"
+        placeholder="Professor"
+        value="${data.name}"
+        data-field="entity-name"
+        aria-describedby="error-entity-name-${data.id}"
+      />
+      <div
+        id="error-entity-name-${data.id}"
+        class="mt-2 hidden text-xs text-red-600"
+        data-error="entity-name"
+        role="alert"
+        aria-live="polite"
+      ></div>
     </div>
-    <div class="mt-5">
-      <label class="${labelClass}">Description</label>
-      <textarea class="entity-desc ${inputClass} min-h-[80px] resize-y" rows="2" placeholder="Teaches or advises students." data-field="entity-desc">${data.desc}</textarea>
+    <div>
+      <label class="${labelClass}" for="entity-parent-${data.id}">Parent Class (Optional)</label>
+      <input
+        type="text"
+        id="entity-parent-${data.id}"
+        class="entity-parent ${inputClass}"
+        placeholder="Person"
+        value="${data.parent}"
+        data-field="entity-parent"
+      />
     </div>
-    <div class="mt-5">
-      <label class="${labelClass}">Properties (Attributes)</label>
+  </div>
+  <div class="mt-5">
+    <label class="${labelClass}" for="entity-desc-${data.id}">Description</label>
+    <textarea
+      id="entity-desc-${data.id}"
+      class="entity-desc ${inputClass} min-h-[80px] resize-y"
+      rows="2"
+      placeholder="Teaches or advises students."
+      data-field="entity-desc"
+    >${data.desc}</textarea>
+  </div>
+  <div class="mt-5">
+    <label class="${labelClass}">Properties (Attributes)</label>
       <div class="sub-item-list mt-3 border-l-2 border-slate-200 pl-4" data-entity-id="${data.id}"></div>
       <button type="button" class="${buttonOutline} mt-3 px-3 py-2 text-xs" data-action="${ACTIONS.addProperty}" data-entity-id="${data.id}">
         + Add Property
@@ -269,27 +323,81 @@ const createRelationshipItem = (data: RelationshipDef): HTMLDivElement => {
     'dynamic-item relationship-item relative mb-5 rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:border-primary'
   div.dataset.relationshipId = data.id
   div.innerHTML = `
-    <button type="button" class="${buttonRemove} absolute right-4 top-4" data-action="${ACTIONS.removeRelationship}">Remove</button>
+    <button
+      type="button"
+      class="${buttonRemove} absolute right-4 top-4"
+      data-action="${ACTIONS.removeRelationship}"
+      aria-label="Remove relationship"
+    >Remove</button>
     <div>
-      <label class="${labelClass}">Predicate Name (Relationship)</label>
-      <input type="text" class="rel-name ${inputClass}" placeholder="GRADUATED_FROM" value="${data.name}" data-field="rel-name" />
-      <div class="mt-2 hidden text-xs text-red-600" data-error="rel-name"></div>
+      <label class="${labelClass}" for="rel-name-${data.id}">Predicate Name (Relationship)</label>
+      <input
+        type="text"
+        id="rel-name-${data.id}"
+        class="rel-name ${inputClass}"
+        placeholder="GRADUATED_FROM"
+        value="${data.name}"
+        data-field="rel-name"
+        aria-describedby="error-rel-name-${data.id}"
+      />
+      <div
+        id="error-rel-name-${data.id}"
+        class="mt-2 hidden text-xs text-red-600"
+        data-error="rel-name"
+        role="alert"
+        aria-live="polite"
+      ></div>
     </div>
     <div class="mt-5 grid gap-5 md:grid-cols-2">
       <div>
-        <label class="${labelClass}">Source Class</label>
-        <input type="text" class="rel-source ${inputClass}" placeholder="Person" value="${data.source}" data-field="rel-source" />
-        <div class="mt-2 hidden text-xs text-red-600" data-error="rel-source"></div>
+        <label class="${labelClass}" for="rel-source-${data.id}">Source Class</label>
+        <input
+          type="text"
+          id="rel-source-${data.id}"
+          class="rel-source ${inputClass}"
+          placeholder="Person"
+          value="${data.source}"
+          data-field="rel-source"
+          aria-describedby="error-rel-source-${data.id}"
+        />
+        <div
+          id="error-rel-source-${data.id}"
+          class="mt-2 hidden text-xs text-red-600"
+          data-error="rel-source"
+          role="alert"
+          aria-live="polite"
+        ></div>
       </div>
       <div>
-        <label class="${labelClass}">Target Class</label>
-        <input type="text" class="rel-target ${inputClass}" placeholder="University" value="${data.target}" data-field="rel-target" />
-        <div class="mt-2 hidden text-xs text-red-600" data-error="rel-target"></div>
+        <label class="${labelClass}" for="rel-target-${data.id}">Target Class</label>
+        <input
+          type="text"
+          id="rel-target-${data.id}"
+          class="rel-target ${inputClass}"
+          placeholder="University"
+          value="${data.target}"
+          data-field="rel-target"
+          aria-describedby="error-rel-target-${data.id}"
+        />
+        <div
+          id="error-rel-target-${data.id}"
+          class="mt-2 hidden text-xs text-red-600"
+          data-error="rel-target"
+          role="alert"
+          aria-live="polite"
+        ></div>
       </div>
     </div>
     <div class="mt-5">
-      <label class="${labelClass}">Properties for this Edge</label>
-      <input type="text" class="rel-props ${inputClass}" placeholder="year, degree_type" value="${data.props}" data-field="rel-props" />
+      <label class="${labelClass}" for="rel-props-${data.id}">Properties for this Edge</label>
+      <input
+        type="text"
+        id="rel-props-${data.id}"
+        class="rel-props ${inputClass}"
+        placeholder="year, degree_type"
+        value="${data.props}"
+        data-field="rel-props"
+      />
     </div>
   `
 
