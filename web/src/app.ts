@@ -73,6 +73,8 @@ const appTemplate = `
         </div>
       </section>
 
+      <div id="validationSummary" class="mb-8 hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+
       <section class="mb-10 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div class="mb-6 flex items-center gap-4 text-2xl font-bold text-primary">
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">2</span>
@@ -124,7 +126,7 @@ const appTemplate = `
         <button type="button" class="${buttonOutline} px-10 py-4 text-base md:text-lg" data-action="use-defaults">
           📝 Use Default Values
         </button>
-        <button type="button" class="${buttonPrimary} px-12 py-4 text-base md:text-lg" data-action="generate">
+        <button type="button" class="${buttonPrimary} px-12 py-4 text-base md:text-lg disabled:cursor-not-allowed disabled:opacity-50" data-action="generate" data-generate>
           ✨ Generate Professional Prompt
         </button>
         <button type="button" class="${buttonGhost} px-8 py-3 text-sm" data-action="export-json">
@@ -561,6 +563,18 @@ const setError = (field: HTMLElement | null, errorEl: HTMLElement | null, messag
   errorEl.classList.remove('hidden')
 }
 
+const updateSummary = (messages: string[]): void => {
+  const summary = document.getElementById('validationSummary')
+  if (!summary) return
+  if (messages.length === 0) {
+    summary.classList.add('hidden')
+    summary.textContent = ''
+    return
+  }
+  summary.classList.remove('hidden')
+  summary.textContent = `Please fix the following issues: ${messages.join(' ')}`
+}
+
 const applyErrors = (errors: ValidationErrors): boolean => {
   clearErrors()
 
@@ -623,6 +637,23 @@ const applyErrors = (errors: ValidationErrors): boolean => {
     }
   })
 
+  const summaryMessages: string[] = []
+  if (errors.domain) summaryMessages.push(errors.domain)
+  if (errors.goal) summaryMessages.push(errors.goal)
+  if (Object.keys(errors.entityNames).length > 0) {
+    summaryMessages.push('One or more entity names are missing or duplicated.')
+  }
+  if (Object.keys(errors.relationshipNames).length > 0) {
+    summaryMessages.push('One or more relationship names are missing or duplicated.')
+  }
+  if (
+    Object.keys(errors.relationshipSources).length > 0 ||
+    Object.keys(errors.relationshipTargets).length > 0
+  ) {
+    summaryMessages.push('One or more relationships reference undefined classes.')
+  }
+  updateSummary(summaryMessages)
+
   const hasErrors =
     Boolean(errors.domain) ||
     Boolean(errors.goal) ||
@@ -630,6 +661,9 @@ const applyErrors = (errors: ValidationErrors): boolean => {
     Object.keys(errors.relationshipNames).length > 0 ||
     Object.keys(errors.relationshipSources).length > 0 ||
     Object.keys(errors.relationshipTargets).length > 0
+
+  const generateButton = document.querySelector<HTMLButtonElement>('[data-generate]')
+  if (generateButton) generateButton.disabled = hasErrors
 
   return !hasErrors
 }
