@@ -54,3 +54,4 @@ web/
 - Determinism is achieved by sorting entity/relationship/property lists by name before rendering the prompt.
 - The original single-file prototype remains at the repo root as `index.html`.
 - Saved configs include a `schemaVersion` field and are migrated on load/import.
+- This project is based on the original prototype at `https://gist.github.com/smrati/3b6ed5d493d9d82418da7e76df8e3125`.
