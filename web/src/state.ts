@@ -71,11 +71,24 @@ export const createEmptyRelationship = (): RelationshipDef => ({
   props: '',
 })
 
-export type VersionedState = FormDataModel & { schemaVersion?: number }
+type LegacyEntity = Omit<Partial<EntityDef>, 'properties'> & {
+  properties?: Array<Partial<PropertyDef>>
+}
+
+type LegacyRelationship = Partial<RelationshipDef>
+
+export type VersionedState = {
+  schemaVersion?: number
+  domain?: string
+  goal?: string
+  entities?: LegacyEntity[]
+  relationships?: LegacyRelationship[]
+  inference?: string
+  constraints?: string
+}
 
 export const migrateState = (data: VersionedState): FormDataModel => {
   const version = data.schemaVersion ?? 0
-  if (version === SCHEMA_VERSION) return data
 
   let migrated: VersionedState = { ...data }
 
@@ -149,7 +162,7 @@ export const buildDefaultState = (): FormDataModel => ({
       id: createId(),
       name: prop.name,
       type: prop.type,
-      constraint: prop.constraint,
+      constraint: prop.constraint as PropertyDef['constraint'],
     })),
   })),
   relationships: DEFAULT_DATA.relationships.map((rel) => ({
